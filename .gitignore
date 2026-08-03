@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# 临时/缓存
+.tmp/
+*.log
+
+# Hermes 运行时
+.hermes/
+hermes.log
+
+# 编辑器
+.vscode/
+.idea/
