@@ -1,11 +1,10 @@
 ---
 name: legal-wiki-audit-repair
-description: Use when 全面排查、系统体检或修复法学Wiki；批量操作Wiki（重命名、重编号、wikilink迁移、反向链接补齐、批量填充页面）。先审计后分批整改。
-version: 3.1.0
-author: Hermes Agent
+description: Use when auditing or repairing a legal research wiki.
 license: MIT
-platforms: [linux, macos, windows]
 metadata:
+  version: "3.1.0"
+  author: Hermes Agent
   hermes:
     tags: [legal-wiki, audit, repair, obsidian, quality-control, batch, rename, wikilink, maintenance]
     related_skills: [legal-research-wiki, llm-wiki, obsidian]

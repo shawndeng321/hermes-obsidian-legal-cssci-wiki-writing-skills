@@ -1,8 +1,9 @@
 ---
 name: legal-research-wiki
-description: "Use when building a legal-academic LLM wiki for group case research, paper writing, or legal knowledge base. Scope-first ingest, Chinese legal materials, batch PDF extraction. 内容完整性纪律（MANDATORY）：每页必须写满实质内容，不允许空壳页面，摄入/建库时强制执行。"
-version: 3.0.0
-platforms: [linux, macos, windows]
+description: Use when building a Chinese legal research wiki.
+license: MIT
+metadata:
+  version: "3.0.0"
 ---
 
 # Legal Research Wiki

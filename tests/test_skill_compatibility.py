@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+import re
+import unittest
+from pathlib import Path
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SKILLS = (
+    "chinese-law-paper-writing",
+    "legal-research-wiki",
+    "legal-wiki-audit-repair",
+)
+ALLOWED_FRONTMATTER_KEYS = {"name", "description", "license", "metadata"}
+EXPECTED_DESCRIPTIONS = {
+    "chinese-law-paper-writing":
+        "Use when planning, writing or checking Chinese legal papers.",
+    "legal-research-wiki":
+        "Use when building a Chinese legal research wiki.",
+    "legal-wiki-audit-repair":
+        "Use when auditing or repairing a legal research wiki.",
+}
+
+
+def load_yaml(path: Path) -> dict:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise AssertionError(f"{path} must contain a YAML mapping")
+    return data
+
+
+def load_skill(path: Path) -> tuple[dict, str]:
+    content = path.read_text(encoding="utf-8")
+    match = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", content, re.DOTALL)
+    if not match:
+        raise AssertionError(f"{path} has invalid frontmatter fences")
+    frontmatter = yaml.safe_load(match.group(1))
+    if not isinstance(frontmatter, dict):
+        raise AssertionError(f"{path} frontmatter must be a mapping")
+    return frontmatter, content[match.end():]
+
+
+class SkillCompatibilityTests(unittest.TestCase):
+    def test_common_frontmatter_contract(self) -> None:
+        for skill_name in SKILLS:
+            with self.subTest(skill=skill_name):
+                skill_path = ROOT / skill_name / "SKILL.md"
+                frontmatter, body = load_skill(skill_path)
+                self.assertEqual(frontmatter["name"], skill_name)
+                self.assertEqual(
+                    set(frontmatter) - ALLOWED_FRONTMATTER_KEYS,
+                    set(),
+                )
+                self.assertEqual(
+                    frontmatter["description"],
+                    EXPECTED_DESCRIPTIONS[skill_name],
+                )
+                self.assertLessEqual(len(frontmatter["description"]), 60)
+                self.assertTrue(frontmatter["description"].startswith("Use when"))
+                self.assertTrue(frontmatter["description"].endswith("."))
+                self.assertEqual(frontmatter["license"], "MIT")
+                metadata = frontmatter["metadata"]
+                self.assertIsInstance(metadata, dict)
+                self.assertRegex(str(metadata["version"]), r"^\d+\.\d+\.\d+$")
+                if "hermes" in metadata:
+                    self.assertIsInstance(metadata["hermes"], dict)
+                self.assertTrue(body.strip())
+                self.assertLessEqual(
+                    len(skill_path.read_text(encoding="utf-8")),
+                    100_000,
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

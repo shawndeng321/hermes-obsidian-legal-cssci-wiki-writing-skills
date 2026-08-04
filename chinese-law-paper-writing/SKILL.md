@@ -1,7 +1,9 @@
 ---
 name: chinese-law-paper-writing
-description: Use when the user is planning, drafting, revising, or checking a Chinese legal journal article, including CSSCI投稿论文、法学期刊论文、论文选题、提纲、正文、摘要、引注、Obsidian资料引用或目标期刊适配；新建研究Wiki或开始新研究时，必须先按五问框架确认研究思路再摄入材料；论文命题归纳/结论推导/群案统计口径/改稿继承说明/推理链完整性/真实Word脚注docx生成。do not use for books, theses or dissertations, contracts, legal opinions, pleadings, or client advice.
-version: 4.0.0
+description: Use when planning, writing or checking Chinese legal papers.
+license: MIT
+metadata:
+  version: "4.0.0"
 ---
 
 # 中国法学论文写作（五问框架融合版）
