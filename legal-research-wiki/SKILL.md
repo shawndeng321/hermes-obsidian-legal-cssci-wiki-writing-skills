@@ -556,7 +556,13 @@ For each affected file, run a cleanup pass that:
 3. Normalizes keyword sections (remove newlines, strip bracket residue)
 4. Preserves paragraph breaks (double newlines) and frontmatter
 
-See `scripts/clean_pdf_artifacts.py` for the reusable cleanup script.
+Use `scripts/clean_pdf_artifacts.py` with `--dry-run` first. A real cleanup must
+pass an explicit `--backup-dir`; the script recursively scans nested entity
+directories, rejects files outside the requested root, backs up every changed
+page before writing, and refuses to clobber an existing backup.
+
+For extraction, `scripts/batch_extract_papers.py --dry-run` previews outputs;
+existing `.txt` companions are skipped unless `--force` is explicitly given.
 
 **This check is separate from content completeness and dead-link checks.** All three
 must pass before declaring ingestion complete. The user WILL spot format artifacts
