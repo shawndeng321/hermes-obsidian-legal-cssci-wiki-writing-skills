@@ -122,6 +122,17 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertNotIn("<本技能包仓库地址>", paper_readme)
         self.assertIn("版本号格式：X.Y.Z", paper_skill)
 
+    def test_large_skill_uses_reference_for_pitfalls(self) -> None:
+        skill_path = ROOT / "legal-research-wiki" / "SKILL.md"
+        skill_content = skill_path.read_text(encoding="utf-8")
+        pitfalls_reference = (
+            ROOT / "legal-research-wiki" / "references" / "pitfalls-and-lessons.md"
+        )
+        self.assertIn("references/pitfalls-and-lessons.md", skill_content)
+        self.assertLessEqual(len(skill_content), 95_000)
+        self.assertTrue(pitfalls_reference.exists())
+        self.assertTrue(pitfalls_reference.read_text(encoding="utf-8").strip())
+
 
 if __name__ == "__main__":
     unittest.main()
