@@ -29,6 +29,7 @@ version: 1.0.0
   2. zipfile 重打包：读 `word/document.xml`，正则把占位符替换为
      `<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="N"/></w:r>`；
      用 lxml 重建整个 `word/footnotes.xml`（保留 `id="-1"` separator、`id="0"` continuationSeparator，追加 N 条 footnote：段落样式 `FootnoteText`、`<w:footnoteRef/>` + 内容 run，字号 `sz val="18"`=9pt）。
+     若模板没有 `word/footnotes.xml`，配套脚本会同时补齐 footnotes relationship 与 `[Content_Types].xml` override。
 - 保存 = zipfile 重写整个 zip：读出所有条目，仅替换 document.xml 与 footnotes.xml，其余原样写回（`zout.writestr(info, data)` 保留原 ZipInfo）。
 
 ## lxml 坑

@@ -1,4 +1,6 @@
 import hashlib
+import zipfile
+import xml.etree.ElementTree as ET
 import subprocess
 import sys
 import tempfile
@@ -11,6 +13,7 @@ CLEAN_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "clean_pdf_artifacts.p
 EXTRACT_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "batch_extract_papers.py"
 SYNC_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "sync_paper_case_links.py"
 INSERT_NORM_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "insert_norm_sections.py"
+DOCX_SCRIPT = ROOT / "chinese-law-paper-writing" / "scripts" / "md2docx_footnotes.py"
 
 
 class ScriptSafetyTests(unittest.TestCase):
@@ -100,6 +103,45 @@ class ScriptSafetyTests(unittest.TestCase):
             result = self.run_script(script, "--help")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("--dry-run", result.stdout)
+
+    def test_docx_script_generates_real_footnotes_from_cli_inputs(self):
+        try:
+            from docx import Document
+            from docx.enum.style import WD_STYLE_TYPE
+        except ImportError as exc:  # pragma: no cover - environment-specific
+            self.skipTest(f"python-docx unavailable: {exc}")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            template = root / "template.docx"
+            draft = root / "draft.md"
+            output = root / "output.docx"
+            doc = Document()
+            for name in ("一级标题", "二级标题", "三级标题", "正文1", "FootnoteText", "FootnoteReference"):
+                if name not in [style.name for style in doc.styles]:
+                    doc.styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
+            doc.save(template)
+            draft.write_text(
+                "题目\n作者姓名\n摘要：摘要内容\n关键词：工伤；举证\n一、正文\n正文含脚注[1]。\n\n## 脚注\n[1] 判决书，第1页。\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(DOCX_SCRIPT, "--src", template, "--md", draft, "--dst", output)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(output.exists())
+            Document(output)
+            with zipfile.ZipFile(output) as archive:
+                document_xml = archive.read("word/document.xml")
+                footnotes_xml = archive.read("word/footnotes.xml")
+            ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            document_root = ET.fromstring(document_xml)
+            footnotes_root = ET.fromstring(footnotes_xml)
+            refs = document_root.findall(".//w:footnoteReference", ns)
+            ids = [node.attrib["{%s}id" % ns["w"]] for node in footnotes_root.findall("w:footnote", ns)]
+            self.assertEqual(len(refs), 1)
+            self.assertIn("1", ids)
+            self.assertIn("判决书，第1页。", footnotes_xml.decode("utf-8"))
 
 
 if __name__ == "__main__":
