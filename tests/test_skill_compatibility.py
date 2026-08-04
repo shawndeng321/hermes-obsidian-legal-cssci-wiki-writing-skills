@@ -100,6 +100,9 @@ class SkillCompatibilityTests(unittest.TestCase):
             )
         self.assertIn(".codex\\skills", root_readme)
         self.assertIn("Copy-Item", root_readme)
+        self.assertIn("--yes", root_readme)
+        self.assertIn("$hermesHome", root_readme)
+        self.assertIn("完整的参考资料、脚本和模板", root_readme)
         self.assertNotIn("hermes skills install <本仓库地址>", root_readme)
         for skill_name in SKILLS:
             skill_readme = (ROOT / skill_name / "README.md").read_text(

@@ -16,7 +16,7 @@
 
 ### Hermes Skills System
 
-三个技能需要分别安装：
+三个技能需要分别安装。本仓库的技能包含 `references/`、`scripts/` 和模板文件，优先使用下面的 `owner/repo/skill` 标识符；不要把仓库根 URL 当成一个技能安装，也不要只下载单个 `SKILL.md` 后假设整套文件都会存在：
 
 ```bash
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
@@ -24,7 +24,29 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
 ```
 
+在脚本、CI 或没有交互式终端的环境中，加 `--yes` 跳过确认提示：
+
+```bash
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing --yes
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki --yes
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair --yes
+```
+
 安装后运行 `hermes skills list`，确认三个技能均为 enabled。
+
+如果当前网络会让 Skills Hub 来源探测超时，可使用已克隆的工作区直接安装到 Hermes 的本地技能目录；这条路径不依赖远程 Hub，但仍会保留完整的参考资料、脚本和模板：
+
+```powershell
+$hermesHome = if ($env:HERMES_HOME) { $env:HERMES_HOME } else { Join-Path $env:LOCALAPPDATA 'hermes' }
+$hermesSkills = Join-Path $hermesHome 'skills'
+New-Item -ItemType Directory -Force $hermesSkills | Out-Null
+Copy-Item -Recurse -Force '.\chinese-law-paper-writing' (Join-Path $hermesSkills 'chinese-law-paper-writing')
+Copy-Item -Recurse -Force '.\legal-research-wiki' (Join-Path $hermesSkills 'legal-research-wiki')
+Copy-Item -Recurse -Force '.\legal-wiki-audit-repair' (Join-Path $hermesSkills 'legal-wiki-audit-repair')
+hermes skills list
+```
+
+Hermes 也支持直接安装单个公开 URL 的 `SKILL.md`，但这是 URL 来源模式；对本仓库这类多文件技能，仍建议使用上面的 GitHub 标识符或本地回退路径。
 
 ### OpenAI Codex
 
