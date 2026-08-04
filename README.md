@@ -1,6 +1,6 @@
 # Hermes 法学研究技能包（Chinese Legal Research Skills for Hermes Agent）
 
-一套为**中国法学学术研究**设计的 Hermes Agent 技能集，覆盖「Obisidian知识库建库 → 维护排查 → 论文写作」完整流程。源自群案研究实战迭代，2026-08 经三轮合并收敛为 3 个核心技能。
+一套为**中国法学学术研究**设计的 Hermes Agent 技能集，覆盖「Obsidian知识库建库 → 维护排查 → 论文写作」完整流程。源自群案研究实战迭代，2026-08 经三轮合并收敛为 3 个核心技能。
 
 ## 技能一览
 
@@ -79,7 +79,7 @@ hermes-legal-skills/
 ├── README.md                    # 本文件
 ├── LICENSE                      # MIT
 ├── legal-research-wiki/         # 技能1：建库
-│   ├── SKILL.md                 # 技能主文件（frontmatter 含 name/description/version）
+│   ├── SKILL.md                 # 技能主文件（frontmatter 含 name/description/license/metadata）
 │   ├── README.md
 │   ├── LICENSE
 │   ├── references/              # 按需加载的详细规则（31 个参考文件）
@@ -108,7 +108,7 @@ hermes-legal-skills/
 
 ## 版本策略
 
-每个技能版本号遵循「内容迭代即升号」纪律（`X.Y`：大迭代改 `X`，增量改 `Y`）。本次打包基线：**2026-08-03**。
+每个技能版本号遵循「内容迭代即升号」纪律（使用 `X.Y.Z`：大迭代改 `X`，增量改 `Y`，修订改 `Z`）。本次打包基线：**2026-08-03**。
 
 ## License
 

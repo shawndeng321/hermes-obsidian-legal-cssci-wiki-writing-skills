@@ -107,6 +107,21 @@ class SkillCompatibilityTests(unittest.TestCase):
             )
             self.assertNotIn("git clone <本仓库地址>", skill_readme)
 
+    def test_documentation_has_no_known_stale_metadata_or_placeholders(self) -> None:
+        root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        paper_readme = (ROOT / "chinese-law-paper-writing" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        paper_skill = (ROOT / "chinese-law-paper-writing" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("Obisidian", root_readme)
+        self.assertIn("frontmatter 含 name/description/license/metadata", root_readme)
+        self.assertNotIn("frontmatter 含 name/description/version", root_readme)
+        self.assertIn("X.Y.Z", root_readme)
+        self.assertNotIn("<本技能包仓库地址>", paper_readme)
+        self.assertIn("版本号格式：X.Y.Z", paper_skill)
+
 
 if __name__ == "__main__":
     unittest.main()
