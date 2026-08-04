@@ -13,6 +13,7 @@ dist/
 
 # 临时/缓存
 .tmp/
+.worktrees/
 *.log
 
 # Hermes 运行时
