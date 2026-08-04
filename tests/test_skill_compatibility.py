@@ -87,6 +87,26 @@ class SkillCompatibilityTests(unittest.TestCase):
                 self.assertLessEqual(len(interface["short_description"]), 64)
                 self.assertIn(f"${skill_name}", interface["default_prompt"])
 
+    def test_installation_docs_use_real_skill_identifiers(self) -> None:
+        repository = (
+            "shawndeng321/"
+            "hermes-obsidian-legal-cssci-wiki-writing-skills"
+        )
+        root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for skill_name in SKILLS:
+            self.assertIn(
+                f"hermes skills install {repository}/{skill_name}",
+                root_readme,
+            )
+        self.assertIn(".codex\\skills", root_readme)
+        self.assertIn("Copy-Item", root_readme)
+        self.assertNotIn("hermes skills install <本仓库地址>", root_readme)
+        for skill_name in SKILLS:
+            skill_readme = (ROOT / skill_name / "README.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertNotIn("git clone <本仓库地址>", skill_readme)
+
 
 if __name__ == "__main__":
     unittest.main()

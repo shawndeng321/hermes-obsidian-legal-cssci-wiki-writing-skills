@@ -87,39 +87,15 @@ PLAN → RESEARCH → OUTLINE → DRAFT → REVISE → AUDIT
 
 ### Hermes Agent
 
-Hermes 的 Skills System 文档将 `~/.hermes/skills/`列为本地 Skill 目录。以下克隆命令以仓库地址可访问为前提；私有仓库须先为当前 Git 客户端配置相应 GitHub 读取权限。
-
-PowerShell：
-
-```powershell
-git clone <本技能包仓库地址> `
-  "$HOME\.hermes\skills\chinese-law-paper-writing"
-```
-
-Bash：
-
 ```bash
-git clone <本技能包仓库地址> \
-  ~/.hermes/skills/chinese-law-paper-writing
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
 ```
 
 参考：[Hermes Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)、[Working with Skills](https://hermes-agent.nousresearch.com/docs/guides/work-with-skills/)。
 
 ### OpenAI Codex
 
-PowerShell：
-
-```powershell
-git clone <本技能包仓库地址> `
-  "$HOME\.codex\skills\chinese-law-paper-writing"
-```
-
-Bash：
-
-```bash
-git clone <本技能包仓库地址> \
-  ~/.codex/skills/chinese-law-paper-writing
-```
+请按[仓库根目录的 Codex 安装说明](../README.md#openai-codex)，将本技能目录复制到 `$HOME\.codex\skills\chinese-law-paper-writing`。
 
 新建任务后，直接要求使用 `chinese-law-paper-writing`。Codex 的项目级持久指令使用 `AGENTS.md`，不是 `CODEX.md`；参见 [Custom instructions with AGENTS.md](https://developers.openai.com/codex/guides/agents-md)。
 

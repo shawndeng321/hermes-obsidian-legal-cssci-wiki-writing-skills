@@ -20,12 +20,10 @@
 ## 安装
 
 ```bash
-# Hermes Agent（macOS/Linux）
-git clone <本仓库地址> ~/.hermes/skills/legal-wiki-audit-repair
-
-# 或手动复制
-cp -R legal-wiki-audit-repair ~/.hermes/skills/
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
 ```
+
+Codex 用户请按[仓库根目录的安装说明](../README.md#openai-codex)，将本技能目录复制到 `$HOME\.codex\skills\legal-wiki-audit-repair`。
 
 ## 使用
 

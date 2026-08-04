@@ -14,35 +14,32 @@
 
 ## 安装
 
-### 方式一：Hermes Skills System（推荐）
+### Hermes Skills System
 
-每个技能是独立目录，放入 Hermes 的本地技能目录即可自动发现：
-
-```bash
-# macOS / Linux
-git clone <本仓库地址> ~/.hermes/skills/
-
-# 或只装需要的：
-git clone <本仓库地址> ~/.hermes/skills/ && cp -R chinese-law-paper-writing ~/.hermes/skills/
-```
-
-> Windows：`%USERPROFILE%\.hermes\skills\`
-
-### 方式二：手动复制
+三个技能需要分别安装：
 
 ```bash
-cp -R legal-research-wiki ~/.hermes/skills/
-cp -R legal-wiki-audit-repair ~/.hermes/skills/
-cp -R chinese-law-paper-writing ~/.hermes/skills/
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
 ```
 
-### 方式三：Herd / Curator 安装（如果使用）
+安装后运行 `hermes skills list`，确认三个技能均为 enabled。
 
-```bash
-hermes skills install <本仓库地址>
+### OpenAI Codex
+
+Codex 使用 `$HOME\.codex\skills`。PowerShell 示例：
+
+```powershell
+$checkout = Join-Path $env:TEMP 'hermes-obsidian-legal-cssci-wiki-writing-skills'
+git clone https://github.com/shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills.git $checkout
+New-Item -ItemType Directory -Force "$HOME\.codex\skills" | Out-Null
+Copy-Item -Recurse "$checkout\chinese-law-paper-writing" "$HOME\.codex\skills\chinese-law-paper-writing"
+Copy-Item -Recurse "$checkout\legal-research-wiki" "$HOME\.codex\skills\legal-research-wiki"
+Copy-Item -Recurse "$checkout\legal-wiki-audit-repair" "$HOME\.codex\skills\legal-wiki-audit-repair"
 ```
 
-安装后验证：`hermes skills list` 应看到三个技能均为 enabled。
+如果临时目录已存在，请换一个空目录后再克隆。重启 Codex 或新建任务后即可使用这些技能。
 
 ## 快速上手（一页工作流）
 
