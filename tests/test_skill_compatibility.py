@@ -72,6 +72,21 @@ class SkillCompatibilityTests(unittest.TestCase):
                     100_000,
                 )
 
+    def test_codex_openai_yaml_contract(self) -> None:
+        for skill_name in SKILLS:
+            with self.subTest(skill=skill_name):
+                data = load_yaml(ROOT / skill_name / "agents" / "openai.yaml")
+                self.assertEqual(set(data), {"interface"})
+                interface = data["interface"]
+                self.assertEqual(
+                    set(interface),
+                    {"display_name", "short_description", "default_prompt"},
+                )
+                self.assertTrue(interface["display_name"].strip())
+                self.assertGreaterEqual(len(interface["short_description"]), 25)
+                self.assertLessEqual(len(interface["short_description"]), 64)
+                self.assertIn(f"${skill_name}", interface["default_prompt"])
+
 
 if __name__ == "__main__":
     unittest.main()
