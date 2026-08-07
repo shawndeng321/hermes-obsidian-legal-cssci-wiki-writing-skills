@@ -46,11 +46,7 @@ AUDIT_ONLY → AUDIT_PLAN → 用户确认范围 → 备份 + DRY_RUN → REPAIR
 
 ## 快速安装
 
-### 当前优化分支
-
-分支尚未合并到 `main` 时，请按[根 README 的当前分支安装](../README.md#current-branch-install)，复制完整技能目录。
-
-### 合并到 `main` 后的 Hermes Skills Hub
+### Hermes Skills Hub
 
 ```bash
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
@@ -61,6 +57,10 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 ```bash
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair --yes
 ```
+
+### 源码安装与 Codex
+
+需要本地审查、离线安装或在 Codex 使用时，请按[根 README 的安装说明](../README.md#安装)，复制完整的 `legal-wiki-audit-repair` 目录及其 `references/`、`scripts/` 和 `agents/` 支持文件。
 
 ## 配套脚本
 

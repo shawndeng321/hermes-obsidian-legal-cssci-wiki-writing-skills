@@ -123,19 +123,23 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertIn("--yes", root_readme)
         self.assertIn("$hermesHome", root_readme)
         self.assertIn("复制完整技能目录", root_readme)
-        self.assertIn("相对 `master/main` 的优化与修改", root_readme)
-        self.assertIn("current-branch-install", root_readme)
+        self.assertIn("## 2026-08 更新内容", root_readme)
+        self.assertIn("git clone", root_readme)
+        self.assertIn("#安装", root_readme)
         self.assertNotIn("hermes skills install <本仓库地址>", root_readme)
         for skill_name in SKILLS:
             skill_readme = (ROOT / skill_name / "README.md").read_text(
                 encoding="utf-8"
             )
             self.assertNotIn("git clone <本仓库地址>", skill_readme)
-            self.assertIn("current-branch-install", skill_readme)
+            self.assertIn("../README.md#安装", skill_readme)
             self.assertIn("--yes", skill_readme)
 
     def test_documentation_has_no_known_stale_metadata_or_placeholders(self) -> None:
-        root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        readmes = [ROOT / "README.md"]
+        readmes.extend(ROOT / skill_name / "README.md" for skill_name in SKILLS)
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in readmes)
+        root_readme = readmes[0].read_text(encoding="utf-8")
         paper_readme = (ROOT / "chinese-law-paper-writing" / "README.md").read_text(
             encoding="utf-8"
         )
@@ -146,6 +150,12 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertIn("SKILL.md", root_readme)
         self.assertIn("agents/openai.yaml", root_readme)
         self.assertIn("X.Y.Z", root_readme)
+        self.assertIn("Hermes 与 Codex", root_readme)
+        self.assertIn("兼容性测试 8/8", root_readme)
+        self.assertIn("脚本安全测试 9/9", root_readme)
+        self.assertNotIn("尚未合并到 `main`", combined)
+        self.assertNotIn("当前优化分支", combined)
+        self.assertNotIn("合并到 `main` 后", combined)
         self.assertNotIn("<本技能包仓库地址>", paper_readme)
         self.assertIn("版本号格式：X.Y.Z", paper_skill)
 

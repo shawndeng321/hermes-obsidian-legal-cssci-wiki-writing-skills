@@ -1,8 +1,10 @@
-# Hermes 法学研究技能包（Chinese Legal Research Skills for Hermes Agent）
+# Hermes / Codex 法学研究技能包（Chinese Legal Research Skills）
 
 面向中国法学研究的三项 AI Skill：先把论文、案例和法条整理成可追溯的 Wiki，再做全库审计与安全修复，最后把研究证据转化为可核验的论文工作稿。
 
 > 本仓库兼容 Hermes 与 Codex。技能正文只保留一份，运行时元数据分别放在 `SKILL.md` 与 `agents/openai.yaml` 中。
+
+[快速选择](#先从这里开始) · [更新内容](#2026-08-更新内容) · [安装](#安装) · [验证](#验证与排错)
 
 <p align="center">
   <img src="chinese-law-paper-writing/assets/readme/paper-banner.png" alt="中国法学研究、知识库审计与论文写作技能包" width="100%">
@@ -26,64 +28,61 @@
 | [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v4.2.0** | 已有 Wiki 出现死链、字段缺失或批量操作需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、统计复核、每日检修（三日迭代）、六项深检脚本、闭世界查询纪律 |
 | [`chinese-law-paper-writing`](chinese-law-paper-writing/) | **v5.1.0** | 选题、研究、起草、修订、审核或期刊适配 | 五问框架、PLAN→ADAPT、证据链、引注门禁、note-level 溯源引注、闭世界查询纪律、DOCX 脚注 |
 
-## 2026-08 更新：multimodal-wiki 融合
+## 2026-08 更新内容
 
-三个技能已融合 [kigner/multimodal-wiki](https://github.com/kigner/multimodal-wiki) v1.0.0（Karpathy LLM Wiki 多模态扩展分支）的核心能力，并按法学研究、Hermes/Codex 双宿主和本仓库安全边界完成适配：
+本次发布将兼容性分支与 [kigner/multimodal-wiki](https://github.com/kigner/multimodal-wiki) v1.0.0 的通用能力统一纳入 `main`，并按中国法学研究、Hermes 与 Codex 双宿主及本仓库的安全边界完成适配。
 
-- **legal-research-wiki**：图片摄入（vision）、音频摄入（faster-whisper）、批量参考文献下载、PDF 提取规范、Obsidian headless 云端同步（`references/multimodal-*.md`）
-- **legal-wiki-audit-repair**：完整六项深检脚本（`scripts/multimodal_audit.py`）、stub 重摄入、sha256 批量修复（`references/multimodal-*.md`）
-- **chinese-law-paper-writing**：note-level 引注格式（`references/multimodal-citation-format.md`，与 citation-integrity 互补）
+### 多模态研究资料
 
-## 相对 `master/main` 的优化与修改
+- **图片与扫描件**：按宿主能力读取截图、图表和扫描页，保留原文件、提取页与来源关系。
+- **音频与访谈**：在具备转录能力时生成逐字稿；能力不可用时保留原始材料并明确标记待处理。
+- **PDF 与批量参考文献**：增加 PDF 提取、批量来源登记和 stub 补全流程；第三方摘要只作发现线索，不自动升级为已核验法律证据。
+- **note-level 溯源**：回答和写作中的事实主张可追溯到具体来源笔记、来源块和原始文件。
 
-仓库远程默认分支目前名为 `main`；本文所说的 `master/main` 指默认基线。本分支 `codex/hermes-codex-compatibility` 在不拆分方法论正文的前提下，完成了以下优化：
+### 审计与安全
 
-### 1. Hermes 与 Codex 兼容性分层
+- **六项深检**：新增 `multimodal_audit.py`，检查索引一致性、raw 摄入、frontmatter、wikilink、文件卫生和日志格式。
+- **stub 与 SHA256 修复**：提供空壳来源重摄入、哈希漂移归因和批量修复指引。
+- **批量脚本保护**：写入操作要求明确 Wiki 作用域、`DRY_RUN`、调用方指定备份、路径包含校验和原子写入；PDF 提取默认不覆盖已有文本。
+- **Obsidian headless 加固**：登录改为交互式凭据输入；持续同步前要求备份、单写者纪律和单次同步验证。
 
-- 三项技能统一使用双方都能识别的 `SKILL.md` frontmatter。
-- 为每项技能增加 `agents/openai.yaml`，补齐 Codex 的显示名、短描述和默认提示词。
-- 修正 Hermes 的逐技能安装标识符，避免把整个仓库误装成一个技能。
-- 增加当前分支的本地安装路径；分支尚未合并到 `main` 时，不会误装默认分支旧版本。
+### 双宿主与交付验证
 
-### 2. 用户入口和文档一致性
+- **Hermes / Codex 分层**：三项技能共用一份 `SKILL.md` 方法论正文，并分别通过标准 frontmatter 与 `agents/openai.yaml` 提供运行时元数据。
+- **真实 DOCX 脚注**：`md2docx_footnotes.py` 支持显式输入、真实脚注关系、内容类型补齐及重新打开验证。
+- **仓库级回归**：当前发布已通过兼容性测试 8/8、脚本安全测试 9/9，共 17/17；三个 Skill 均通过 Codex `quick_validate.py`。
 
-- 根 README 增加“目标 → 技能 → 输出”的决策表、三分钟工作流和验证步骤。
-- 三项技能 README 统一安装、使用、依赖和适用范围说明。
-- 清理旧技能名、旧 frontmatter、占位安装命令和过时路径说明。
-- 明确哪些内容属于方法论、哪些内容属于运行时元数据，降低维护成本。
-
-### 3. 批量脚本的安全边界
-
-- 清洗、链接同步和规范段落脚本增加 `--dry-run`、备份目录、路径包含校验、禁止覆盖已有备份和原子写入。
-- 移除作者本机硬编码路径；批量脚本改为接收调用方明确传入的 Wiki 路径。
-- PDF 批量提取默认不覆盖已有文本，破坏性动作需要显式确认。
-
-### 4. DOCX 脚注链路可验证
-
-- `md2docx_footnotes.py` 支持显式命令行输入、唯一临时目录和 `[N]`/`[脚注N]` 标记。
-- 模板没有 `footnotes.xml` 时自动补齐关系和内容类型声明。
-- 增加真实 DOCX 生成、重新打开和脚注引用一致性检查。
-
-### 5. 可回归验证
-
-- 增加仓库级 Hermes/Codex 兼容性测试与脚本安全测试。
-- 当前分支已验证：兼容性测试 7/7、安全测试 9/9、三个 Codex `quick_validate.py` 均通过。
-- 本机 Hermes 隔离目录验证三个技能均能以 `local / enabled` 发现，并保留完整支持文件。
-
-以上修改只改变兼容性、文档、脚本安全和验证层，不删除原有方法论内容；详细设计与实施记录见 [`docs/superpowers/`](docs/superpowers/)。
+本次更新保留原有法学研究与论文写作方法论；详细设计、实施和合并记录见 [`docs/superpowers/`](docs/superpowers/)。
 
 ## 安装
 
-<a id="current-branch-install"></a>
+### Hermes Skills Hub
 
-### 选项 A：当前分支安装（尚未合并到 `main` 时推荐）
+三个技能需要分别安装：
 
-当前分支包含本次优化，先克隆分支，再复制完整技能目录。请使用一个空的临时目录：
+```bash
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
+```
+
+脚本或 CI 环境加 `--yes`：
+
+```bash
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing --yes
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki --yes
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair --yes
+```
+
+安装后运行 `hermes skills list`，确认三个技能均为 `enabled`。本仓库是多文件技能；不要把仓库根 URL 或单个 `SKILL.md` 当成完整安装入口。
+
+### 源码安装（Hermes / Codex）
+
+需要本地审查、离线安装或固定版本时，从 `main` 克隆仓库，再复制完整技能目录。请使用一个空的临时目录：
 
 ```powershell
-$branch = 'codex/hermes-codex-compatibility'
-$checkout = Join-Path $env:TEMP 'hermes-legal-skills-codex-compatibility'
-git clone --branch $branch https://github.com/shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills.git $checkout
+$checkout = Join-Path $env:TEMP 'hermes-legal-skills'
+git clone --branch main https://github.com/shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills.git $checkout
 ```
 
 Hermes：
@@ -108,24 +107,6 @@ Copy-Item -Recurse -Force "$checkout\legal-research-wiki" (Join-Path $codexSkill
 Copy-Item -Recurse -Force "$checkout\legal-wiki-audit-repair" (Join-Path $codexSkills 'legal-wiki-audit-repair')
 ```
 
-### 选项 B：分支合并到 `main` 后使用 Hermes Skills Hub
-
-三个技能需要分别安装；脚本或 CI 环境加 `--yes`：
-
-```bash
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
-```
-
-```bash
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing --yes
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki --yes
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair --yes
-```
-
-安装后运行 `hermes skills list`，确认三个技能均为 `enabled`。本仓库是多文件技能；不要把仓库根 URL 或单个 `SKILL.md` 当成完整安装入口。
-
 ## 三分钟工作流
 
 ```text
@@ -143,7 +124,7 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 
 - Hermes：`hermes skills list --source local --enabled-only` 或 `hermes skills list`。
 - Codex：新建任务后直接要求使用对应技能；技能目录必须包含 `SKILL.md` 和 `agents/openai.yaml`。
-- 如果远程 Hub 因网络探测超时，使用“选项 A”的本地复制路径，不要重复下载单个 `SKILL.md`。
+- 如果远程 Hub 因网络探测超时，使用“源码安装”的本地复制路径，不要重复下载单个 `SKILL.md`。
 
 ### 开发验证
 
@@ -164,7 +145,7 @@ python -X utf8 $validator legal-wiki-audit-repair
 ## 目录结构
 
 ```text
-README.md                    # 总入口、安装、分支变更和验证
+README.md                    # 总入口、安装、更新内容和验证
 chinese-law-paper-writing/   # 论文写作与投稿工作稿
 legal-research-wiki/         # 研究 Wiki 建库与摄入
 legal-wiki-audit-repair/     # Wiki 审计、批量修复与复核
@@ -183,6 +164,6 @@ tests/                        # 兼容性和脚本安全回归测试
 
 ## 版本与许可证
 
-每项技能遵循 `X.Y.Z` 版本策略：内容能力变化升 `X`/`Y`，修订和兼容性修复升 `Z`。当前打包基线：2026-08-03。
+每项技能遵循 `X.Y.Z` 版本策略：内容能力变化升 `X`/`Y`，修订和兼容性修复升 `Z`。当前打包基线：2026-08-07。
 
 MIT © 2026 Shawn Deng。内容来自法学论文写作与知识库管理实践；本项目不是 Hermes、OpenAI、Obsidian、CSSCI 期刊或其他机构的官方指南、认证或录用承诺。

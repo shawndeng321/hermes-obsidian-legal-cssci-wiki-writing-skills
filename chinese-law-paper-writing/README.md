@@ -87,11 +87,7 @@ PLAN → RESEARCH → OUTLINE → DRAFT → REVISE → AUDIT
 
 ## 快速安装
 
-### 当前优化分支
-
-分支尚未合并到 `main` 时，请按[仓库根目录的当前分支安装说明](../README.md#current-branch-install)，复制完整的 `chinese-law-paper-writing` 目录；这样 `references/`、模板和 DOCX 脚本会一并安装。
-
-### Hermes Agent（合并到 `main` 后）
+### Hermes Skills Hub
 
 ```bash
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
@@ -105,9 +101,9 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 
 参考：[Hermes Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)、[Working with Skills](https://hermes-agent.nousresearch.com/docs/guides/work-with-skills/)。
 
-### OpenAI Codex
+### 源码安装与 OpenAI Codex
 
-请按[仓库根目录的 Codex 安装说明](../README.md#openai-codex)，将本技能目录复制到 `$HOME\.codex\skills\chinese-law-paper-writing`。
+请按[仓库根目录的安装说明](../README.md#安装)，复制完整的 `chinese-law-paper-writing` 目录；这样 `references/`、模板和 DOCX 脚本会一并安装。Codex 的默认目标目录为 `$HOME\.codex\skills\chinese-law-paper-writing`。
 
 新建任务后，直接要求使用 `chinese-law-paper-writing`。Codex 的项目级持久指令使用 `AGENTS.md`，不是 `CODEX.md`；参见 [Custom instructions with AGENTS.md](https://developers.openai.com/codex/guides/agents-md)。
 

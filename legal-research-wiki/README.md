@@ -33,11 +33,7 @@
 
 ## 快速安装
 
-### 当前优化分支
-
-分支尚未合并到 `main` 时，请按[根 README 的当前分支安装](../README.md#current-branch-install)，把完整技能目录复制到 Hermes 或 Codex。
-
-### 合并到 `main` 后的 Hermes Skills Hub
+### Hermes Skills Hub
 
 ```bash
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki
@@ -48,6 +44,10 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 ```bash
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki --yes
 ```
+
+### 源码安装与 Codex
+
+需要本地审查、离线安装或在 Codex 使用时，请按[根 README 的安装说明](../README.md#安装)，复制完整的 `legal-research-wiki` 目录及其 `references/`、`scripts/` 和 `agents/` 支持文件。
 
 ## 第一次使用
 
