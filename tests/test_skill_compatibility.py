@@ -176,6 +176,20 @@ class SkillCompatibilityTests(unittest.TestCase):
                 self.assertTrue(path.exists(), relative_path)
                 self.assertTrue(path.read_text(encoding="utf-8").strip())
 
+    def test_obsidian_headless_guidance_protects_credentials_and_concurrent_edits(
+        self,
+    ) -> None:
+        guidance = (
+            ROOT
+            / "legal-research-wiki"
+            / "references"
+            / "multimodal-obsidian-headless.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("\nob login\n", guidance)
+        self.assertNotRegex(guidance, r"ob login[^\n]*--(?:email|password)")
+        self.assertIn("并发", guidance)
+        self.assertIn("备份", guidance)
+
     def test_local_markdown_links_in_integrated_skills_resolve(self) -> None:
         documents = [ROOT / skill_name / "SKILL.md" for skill_name in SKILLS]
         documents.extend(
