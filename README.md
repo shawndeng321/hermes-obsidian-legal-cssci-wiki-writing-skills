@@ -1,4 +1,4 @@
-# Hermes 法学研究技能包
+# Hermes 法学研究技能包（Chinese Legal Research Skills for Hermes Agent）
 
 面向中国法学研究的三项 AI Skill：先把论文、案例和法条整理成可追溯的 Wiki，再做全库审计与安全修复，最后把研究证据转化为可核验的论文工作稿。
 
