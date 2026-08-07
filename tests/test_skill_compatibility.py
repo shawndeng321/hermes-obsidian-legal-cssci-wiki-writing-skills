@@ -22,6 +22,22 @@ EXPECTED_DESCRIPTIONS = {
     "legal-wiki-audit-repair":
         "Use when auditing or repairing a legal research wiki.",
 }
+EXPECTED_VERSIONS = {
+    "chinese-law-paper-writing": "5.1.0",
+    "legal-research-wiki": "4.1.0",
+    "legal-wiki-audit-repair": "4.2.0",
+}
+MULTIMODAL_FILES = (
+    "chinese-law-paper-writing/references/multimodal-citation-format.md",
+    "legal-research-wiki/references/multimodal-audio-ingest.md",
+    "legal-research-wiki/references/multimodal-bulk-refs.md",
+    "legal-research-wiki/references/multimodal-image-ingest.md",
+    "legal-research-wiki/references/multimodal-obsidian-headless.md",
+    "legal-research-wiki/references/multimodal-pdf-extraction.md",
+    "legal-wiki-audit-repair/references/multimodal-reingest-stubs.md",
+    "legal-wiki-audit-repair/references/multimodal-sha256-bulk-fix.md",
+    "legal-wiki-audit-repair/scripts/multimodal_audit.py",
+)
 
 
 def load_yaml(path: Path) -> dict:
@@ -64,6 +80,10 @@ class SkillCompatibilityTests(unittest.TestCase):
                 metadata = frontmatter["metadata"]
                 self.assertIsInstance(metadata, dict)
                 self.assertRegex(str(metadata["version"]), r"^\d+\.\d+\.\d+$")
+                self.assertEqual(
+                    str(metadata["version"]),
+                    EXPECTED_VERSIONS[skill_name],
+                )
                 if "hermes" in metadata:
                     self.assertIsInstance(metadata["hermes"], dict)
                 self.assertTrue(body.strip())
@@ -139,6 +159,42 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertLessEqual(len(skill_content), 95_000)
         self.assertTrue(pitfalls_reference.exists())
         self.assertTrue(pitfalls_reference.read_text(encoding="utf-8").strip())
+
+    def test_multimodal_package_is_complete_and_versions_are_consistent(self) -> None:
+        root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for skill_name, version in EXPECTED_VERSIONS.items():
+            with self.subTest(skill=skill_name):
+                skill_readme = (ROOT / skill_name / "README.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(f"v{version}", root_readme)
+                self.assertIn(f"v{version}", skill_readme)
+
+        for relative_path in MULTIMODAL_FILES:
+            with self.subTest(path=relative_path):
+                path = ROOT / relative_path
+                self.assertTrue(path.exists(), relative_path)
+                self.assertTrue(path.read_text(encoding="utf-8").strip())
+
+    def test_local_markdown_links_in_integrated_skills_resolve(self) -> None:
+        documents = [ROOT / skill_name / "SKILL.md" for skill_name in SKILLS]
+        documents.extend(
+            ROOT / relative_path
+            for relative_path in MULTIMODAL_FILES
+            if relative_path.endswith(".md")
+        )
+        for document in documents:
+            with self.subTest(document=document.relative_to(ROOT)):
+                self.assertTrue(document.exists(), document)
+                content = document.read_text(encoding="utf-8")
+                for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", content):
+                    if "://" in target or target.startswith("#"):
+                        continue
+                    resolved = (document.parent / target.split("#", 1)[0]).resolve()
+                    self.assertTrue(
+                        resolved.exists(),
+                        f"{document.relative_to(ROOT)} -> {target}",
+                    )
 
 
 if __name__ == "__main__":

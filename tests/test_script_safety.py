@@ -1,4 +1,5 @@
 import hashlib
+import os
 import zipfile
 import xml.etree.ElementTree as ET
 import subprocess
@@ -14,6 +15,9 @@ EXTRACT_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "batch_extract_paper
 SYNC_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "sync_paper_case_links.py"
 INSERT_NORM_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "insert_norm_sections.py"
 DOCX_SCRIPT = ROOT / "chinese-law-paper-writing" / "scripts" / "md2docx_footnotes.py"
+MULTIMODAL_AUDIT_SCRIPT = (
+    ROOT / "legal-wiki-audit-repair" / "scripts" / "multimodal_audit.py"
+)
 
 
 class ScriptSafetyTests(unittest.TestCase):
@@ -142,6 +146,70 @@ class ScriptSafetyTests(unittest.TestCase):
             self.assertEqual(len(refs), 1)
             self.assertIn("1", ids)
             self.assertIn("判决书，第1页。", footnotes_xml.decode("utf-8"))
+
+    def test_multimodal_audit_normalizes_windows_raw_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wiki = Path(tmp) / "wiki"
+            entities = wiki / "entities"
+            screenshots = wiki / "raw" / "screenshots"
+            entities.mkdir(parents=True)
+            screenshots.mkdir(parents=True)
+
+            (wiki / "index.md").write_text(
+                "当前纳入导航的页面：1\n\n- [[Topic]]\n",
+                encoding="utf-8",
+            )
+            (wiki / "SCHEMA.md").write_text(
+                "### A. 概念类\n- topic\n",
+                encoding="utf-8",
+            )
+            (wiki / "log.md").write_text(
+                "## [2026-08-07] ingest\n\n- raw/screenshots/sample.md\n",
+                encoding="utf-8",
+            )
+            (entities / "Topic.md").write_text(
+                "---\n"
+                "title: Topic\n"
+                "created: 2026-08-07\n"
+                "updated: 2026-08-07\n"
+                "type: concept\n"
+                "tags: [topic]\n"
+                "sources: [raw/screenshots/sample.md]\n"
+                "---\n\n"
+                "# Topic\n\n[[Topic]]\n",
+                encoding="utf-8",
+            )
+            (screenshots / "sample.png").write_bytes(b"test-image")
+            (screenshots / "sample.md").write_text(
+                "---\n"
+                "title: Sample\n"
+                "sha256: abc123\n"
+                "---\n\n"
+                "line one\nline two\nline three\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(MULTIMODAL_AUDIT_SCRIPT, wiki)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("All raw .md referenced in log", result.stdout)
+            self.assertIn("sample.png — extract has 3 body lines", result.stdout)
+
+    def test_multimodal_audit_requires_an_explicit_wiki_path(self):
+        env = os.environ.copy()
+        env.pop("WIKI_PATH", None)
+
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", str(MULTIMODAL_AUDIT_SCRIPT)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("WIKI_PATH", result.stderr)
 
 
 if __name__ == "__main__":
