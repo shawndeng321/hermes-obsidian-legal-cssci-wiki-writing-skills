@@ -3,6 +3,8 @@
 对法学研究 Obsidian/LLM Wiki 做全库体检、问题分级、分批整改和复核。它把“发现问题”和“修改页面”分成不同阶段，适合需要保留证据、备份和回滚边界的研究库。
 
 > 运行时入口是 [`SKILL.md`](SKILL.md)。本页提供模式选择、安装和安全使用方式；批量操作细则见 `references/`。
+>
+> **当前版本：v4.2.0（2026-08）**。新增 multimodal-wiki 六项深检、stub 重摄入、SHA256 漂移修复、畸形链接检测和 MANIFEST 核验纪律。
 
 ## 什么时候使用
 
@@ -64,8 +66,11 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 
 - `scripts/sync_paper_case_links.py`：同步论文与案例之间的链接。
 - `scripts/insert_norm_sections.py`：按确认范围插入规范段落。
+- `scripts/multimodal_audit.py`：对指定 Wiki 执行索引、raw 摄入、frontmatter、wikilink、文件卫生和 log 六项只读深检。
 - `references/batch-operations.md`：批量重命名、编号、链接迁移和反链补齐的安全流程。
-- `references/daily-maintenance.md`：每日检修与三日迭代规则。
+- `references/multimodal-reingest-stubs.md`：空壳来源补全边界。
+- `references/multimodal-sha256-bulk-fix.md`：raw 提取文本的 SHA256 批量修复方法。
+- 每日检修、三日迭代和通用巡检增强纪律直接维护在 `SKILL.md`。
 
 所有会写入 Wiki 的脚本都应先用 `--dry-run` 查看计划；不要直接把整个 Vault 作为目标，也不要使用未经确认的备份路径。
 

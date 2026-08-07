@@ -3,6 +3,8 @@
 把论文、案例、法条和研究方法整理成可追溯、可审计、可继续维护的法学研究 Wiki。适合在研究项目开始时建立底层资料结构，也适合已有 Wiki 的分批扩充。
 
 > 运行时入口是 [`SKILL.md`](SKILL.md)。本页解决“什么时候用、怎么开始、如何验收”；详细规则按需阅读 `references/`。
+>
+> **当前版本：v4.1.0（2026-08）**。新增图片、音频、本地 PDF 和批量参考文献摄入，以及闭世界查询纪律与 Obsidian headless 同步说明。
 
 ## 适合解决什么问题
 
@@ -16,7 +18,7 @@
 | 能力 | 结果 |
 |---|---|
 | 范围优先摄入 | 先勘察目录和授权范围，再确认批次，避免无边界扫描整个 Vault |
-| 多格式提取 | 支持 PDF/DOCX 进入可复核的 Markdown 工作层；OCR 工具按需启用 |
+| 多格式提取 | 支持 PDF/DOCX/图片/音频进入可复核的 Markdown 工作层；OCR、视觉与转录能力按宿主实际配置启用 |
 | 关系网络 | 建立论文↔底稿↔案例↔法条的可追溯链接，而不是只堆标签 |
 | 六维质量门禁 | 检查摘要、结论、PDF 残留、关键词、YAML 和标题空行 |
 | 学术可用性 | 区分假说与事实、来源线索与已核验材料，保留证据缺口 |
@@ -68,6 +70,8 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 - 维护与修复：[legal-wiki-audit-repair](../legal-wiki-audit-repair/)
 - 论文写作：[chinese-law-paper-writing](../chinese-law-paper-writing/)
 - 批量 PDF 提取：`scripts/batch_extract_papers.py`
+- 多模态摄入：`references/multimodal-image-ingest.md`、`references/multimodal-audio-ingest.md`、`references/multimodal-pdf-extraction.md`
+- 批量参考文献：`references/multimodal-bulk-refs.md`
 - PDF 文本残留清洗：`scripts/clean_pdf_artifacts.py`
 
 脚本默认偏保守：先 `--dry-run`，写入时提供调用方指定的备份目录；不要把作者本机路径、整库路径或未经确认的批量范围写进命令。

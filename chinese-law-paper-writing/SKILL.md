@@ -3,7 +3,7 @@ name: chinese-law-paper-writing
 description: Use when planning, writing or checking Chinese legal papers.
 license: MIT
 metadata:
-  version: "4.0.0"
+  version: "5.1.0"
 ---
 
 # 中国法学论文写作（五问框架融合版）
@@ -11,6 +11,16 @@ metadata:
 > 本版由 chinese-law-paper-writing 与 cssci-paper-writing（五问方法论 v2.0.0）融合而成：以任务模式、硬门禁、引注纪律为骨架，以五问框架为选题与验收主线。
 >
 > **v4.0.0 合并说明**：原独立技能 `five-questions-framework` v1.0.0（需求拆解操作流程）、`legal-paper-argumentation` v1.0.0（推理链/统计口径/改稿继承执行细则，含 md2docx 脚本）、`academic-paper-docx` v1.0.0（投稿docx生产细则）已并入本技能，详见下方参考文件。触发词：五问需求拆解、命题归纳、统计口径、改稿继承说明、docx脚注生成。
+
+## 闭世界查询纪律（CLOSED-WORLD QUERY，强制）
+
+**写作/论证支撑只使用知识库（Wiki）与用户提供的原始材料**——禁止联网补缺、禁止用模型自身记忆编造来源。这是防止 AI 幻觉（瞎编乱造）的核心学术纪律，与"不得补造"规则一脉相承但更严格：
+
+- **知识库未覆盖的问题** → 如实说"库内无此内容"，标记 `[来源不明]`/`[待核]`，先摄入再答；不得用模型记忆"补全"；
+- **桩/空壳页面不算覆盖**——页面只有 frontmatter 或占位正文时视为未摄入，禁止脑补内容（对应：121案未摄入前，统计口径不得写成已验证结论）；
+- **来源性主张（法条/案号/文献页码/数据）必须能回溯到库内页面 + raw 原始材料**，否则不得写入正文；宁缺毋滥，不可"看起来像真的"就写；
+- **联网检索只属于摄入环节**（用户授权后为补充素材），永远不属于查询/写作环节；
+- 写作草稿中的任何数字、比例、判例归纳，必须是库内已核验材料；未验证的一律标 `[待核]`，不静默升级。
 
 ## 核心原则
 
@@ -266,6 +276,7 @@ metadata:
 - 执行完整流程、选题、提纲、起草或修改时，读取 [workflow.md](references/workflow.md)。
 - 使用法律规范、案例、政策、数据或学术文献时，读取 [evidence-and-legal-validity.md](references/evidence-and-legal-validity.md)。
 - 起草正文、补引注、生成全文或执行引用审核时，必须读取 [citation-integrity.md](references/citation-integrity.md)。
+- 回答知识库查询、写作支撑时，要求每个事实主张能追溯到具体源文件（note-level 溯源，绝对路径 + 来源块）时，读取 [multimodal-citation-format.md](references/multimodal-citation-format.md)（v5.1.0 融合 multimodal-wiki；与 citation-integrity 互补：本文件规定"回答如何呈现来源"，citation-integrity 规定"来源如何核验"）。
 - 适配期刊、摘要、关键词、匿名或投稿要求时，读取 [journal-adaptation.md](references/journal-adaptation.md)。
 - 使用 Obsidian、Markdown 笔记或知识库时，读取 [obsidian-hermes-workflow.md](references/obsidian-hermes-workflow.md)。
 

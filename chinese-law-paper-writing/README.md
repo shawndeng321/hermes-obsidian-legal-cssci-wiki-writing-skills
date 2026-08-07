@@ -29,7 +29,9 @@
 
 <div align="center">
 
-> **当前版本：v4.0.0（2026-08）**
+> **当前版本：v5.1.0（2026-08）**
+>
+> v5.1.0 增加闭世界查询纪律和 note-level 来源溯源格式：写作支撑只使用知识库与用户提供材料，库内无依据时标记待核，不用模型记忆补造来源。
 >
 > v4.0.0 已吸收原独立技能：`five-questions-framework`（五问需求拆解）、`legal-paper-argumentation`（推理链完整性/群案统计口径/改稿继承执行细则）、`academic-paper-docx`（投稿 docx 生产）。原内容完整保留在 `references/` 下：
 > - `references/five-questions-framework.md`

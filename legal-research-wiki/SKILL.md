@@ -3,7 +3,7 @@ name: legal-research-wiki
 description: Use when building a Chinese legal research wiki.
 license: MIT
 metadata:
-  version: "3.0.0"
+  version: "4.1.0"
 ---
 
 # Legal Research Wiki
@@ -24,6 +24,18 @@ For multi-model Wiki-to-paper workflows, keep the process model-agnostic:
 - Store current provider/model mappings in a separate role registry and benchmark replacements before promotion; never hard-code today's model names as permanent workflow rules.
 
 See `references/model-orchestrated-legal-research-workflow.md` for role slots, Wiki and paper-writing stage maps, Hermes MoA boundaries, handoff contracts, update benchmarks, and a dated example mapping.
+
+## Closed-World Query Discipline（闭世界查询纪律，v3.1.0 新增，强制）
+
+**查询知识库时只用 wiki 内容回答**——禁止联网补缺、禁止用模型自身记忆编造来源。这是防止 AI 幻觉（瞎编乱造）的核心学术纪律。
+
+- **知识库未覆盖的问题** → 如实说"库内无此内容"，标记 `[来源不明]`，并提供摄入方案（先摄入再答）；
+- **桩/空壳页面不算覆盖**——页面只有 frontmatter 或占位正文时视为未摄入，禁止脑补内容（对应纪律：121案未摄入前统计口径不得写成已验证结论）；
+- **联网检索属于摄入环节**（用户授权后为补充素材才用），永远不属于查询环节；
+- **来源性主张必须可回溯**：法条/案号/文献页码等必须能回溯到库内页面 + raw 原始材料，否则不得写入；
+- **回答必须标注出处**：引用 [[页面名]]，关键主张附来源路径，禁止无出处的断言。
+
+**适用场景**：查询知识库、为论文写作调取证据、审查某个观点库内是否已有。
 
 ## When to Use
 
@@ -59,6 +71,24 @@ See scripts/batch_extract_papers.py for the reusable template.
 
 marker-pdf is needed only for scanned/image-based PDFs (OCR). Most academic PDFs
 from CNKI are text-based and work with pymupdf alone.
+
+## Multimodal Ingestion (多模态摄入，v4.1.0 融合 multimodal-wiki)
+
+除文本/PDF 外，图片与音频是一等公民来源，与 PDF 同待遇（原件入 raw/ 不可变 + 提取文件并存）：
+
+- **图片/截图/扫描件**（聊天粘贴、raw/screenshots/、网页图表）→ `references/multimodal-image-ingest.md`：
+  vision 模型读取 → 详细描述存 `raw/screenshots/<topic>.md` + sha256；原件 .png 不可变。
+  嵌入展示用 `raw/assets/`（副本），源图不动。
+- **音频/语音备忘录/录音**（庭审录音、访谈、口述备忘）→ `references/multimodal-audio-ingest.md`：
+  faster-whisper 转录（Hermes venv 已装；中文用 large-v3）→ **逐字稿**存 `raw/transcripts/<topic>.md` + sha256；
+  转录必须 verbatim，不做摘要；ASR 误读风险 → `confidence: medium`。
+- **批量下载参考文献**（论文引用清单批量入库）→ `references/multimodal-bulk-refs.md`：
+  arXiv `/pdf/` 优先，知网/北大法宝等法学来源套用同一"批量抓取→存 stub→补全"流程。
+- **本地 PDF 提取补充规范**（sha256 前页 + raw/papers 双文件）→ `references/multimodal-pdf-extraction.md`。
+- **Obsidian 云端同步**（headless 无头模式）→ `references/multimodal-obsidian-headless.md`：
+  服务器/云主机 obsidian-headless + Obsidian Sync 与本地桌面端同步同一 vault。
+
+所有多模态摄入完成后，照常执行：内容完整性检查 → 死链检查 → 交叉引用网络（见下文 MANDATORY 章节）。
 
 ## Duplicate Detection
 
@@ -291,6 +321,11 @@ Thin concept pages (1200-1800 chars, theory-only) fail the user's standard once 
 - `references/session-2026-07-30-threesection-repair.md` — Three-section batch quality repair (摘要+核心论点+主要结论): English Abstract contamination defect type, PDF-residue in 核心论点 requiring full rewrite, benchmark-driven quality repair pattern
 - `references/session-2026-07-30-phase3-lessons.md` — Phase 3 polish: vault-root ghost files, sources/filename sync, 引用规范 statute-article completion, 引用案例 extraction, subagent lazy markers and format drift
 - `references/systematic-vault-audit-and-optimization-ledger.md` — Whole-vault structural and semantic audit, template-risk detection, graph-shape analysis, and append-only optimization ledger protocol
+- `references/multimodal-image-ingest.md` — 图片素材摄入（截图/图表/扫描件 → vision 读取 → raw/screenshots/ + 同名 .md 提取）；与 PDF 同级的一等公民来源（v4.1.0 融合 multimodal-wiki）
+- `references/multimodal-audio-ingest.md` — 音频素材摄入（语音备忘录/录音 → faster-whisper 逐字转录 → raw/transcripts/ + 同名 .md）；转录必须 verbatim，不做摘要（v4.1.0 融合 multimodal-wiki）
+- `references/multimodal-bulk-refs.md` — 批量下载参考文献（arXiv 等来源；方法通用，知网/北大法宝可套用同一"批量抓取→存 stub→补全"流程）（v4.1.0 融合 multimodal-wiki）
+- `references/multimodal-pdf-extraction.md` — 本地 PDF 提取 pymupdf 流程（sha256 前页 + raw/papers 双文件保存规范），与既有 PDF 清洗纪律互补（v4.1.0 融合 multimodal-wiki）
+- `references/multimodal-obsidian-headless.md` — Obsidian 云端同步（headless 无头模式：服务器/云主机 obsidian-headless + Obsidian Sync 与本地桌面端同步同一 vault；systemd 持续同步配置）（v4.1.0 融合 multimodal-wiki）
 - `scripts/batch_extract_papers.py` — Reusable PDF batch extraction script
 - `scripts/clean_pdf_artifacts.py` — Reusable PDF artifact cleanup script (run after batch ingestion)
 - `scripts/check_wikilinks.py` — Vault-wide recursive dead-link/backlink checker (handles nested entity dirs, known false positives, optional target-page backlink count)

@@ -1,8 +1,8 @@
-# Hermes 法学研究技能包
+# Hermes 法学研究技能包（Chinese Legal Research Skills for Hermes Agent）
 
 面向中国法学研究的三项 AI Skill：先把论文、案例和法条整理成可追溯的 Wiki，再做全库审计与安全修复，最后把研究证据转化为可核验的论文工作稿。
 
-> 本仓库同时提供 Hermes Agent 与 OpenAI Codex 的技能目录。正文只保留一份，运行时元数据分别放在 `SKILL.md` 与 `agents/openai.yaml` 中。
+> 本仓库兼容 Hermes 与 Codex。技能正文只保留一份，运行时元数据分别放在 `SKILL.md` 与 `agents/openai.yaml` 中。
 
 <p align="center">
   <img src="chinese-law-paper-writing/assets/readme/paper-banner.png" alt="中国法学研究、知识库审计与论文写作技能包" width="100%">
@@ -22,9 +22,17 @@
 
 | 技能 | 版本 | 适合什么时候用 | 核心能力 |
 |---|---:|---|---|
-| [`legal-research-wiki`](legal-research-wiki/) | v3.0.0 | 新建、扩充或重新整理研究库 | 范围优先摄入、PDF/DOCX 提取、交叉引用、六维质量门禁 |
-| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | v3.1.0 | 已有 Wiki 出现死链、字段缺失或批量操作需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、统计复核 |
-| [`chinese-law-paper-writing`](chinese-law-paper-writing/) | v4.0.0 | 选题、研究、起草、修订、审核或期刊适配 | 五问框架、PLAN→ADAPT、证据链、引注门禁、DOCX 脚注 |
+| [`legal-research-wiki`](legal-research-wiki/) | **v4.1.0** | 新建、扩充或重新整理研究库 | 范围优先摄入、PDF/DOCX/图片/音频摄入、交叉引用、六维质量门禁、闭世界查询纪律、Obsidian 云端同步 |
+| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v4.2.0** | 已有 Wiki 出现死链、字段缺失或批量操作需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、统计复核、每日检修（三日迭代）、六项深检脚本、闭世界查询纪律 |
+| [`chinese-law-paper-writing`](chinese-law-paper-writing/) | **v5.1.0** | 选题、研究、起草、修订、审核或期刊适配 | 五问框架、PLAN→ADAPT、证据链、引注门禁、note-level 溯源引注、闭世界查询纪律、DOCX 脚注 |
+
+## 2026-08 更新：multimodal-wiki 融合
+
+三个技能已融合 [kigner/multimodal-wiki](https://github.com/kigner/multimodal-wiki) v1.0.0（Karpathy LLM Wiki 多模态扩展分支）的核心能力，并按法学研究、Hermes/Codex 双宿主和本仓库安全边界完成适配：
+
+- **legal-research-wiki**：图片摄入（vision）、音频摄入（faster-whisper）、批量参考文献下载、PDF 提取规范、Obsidian headless 云端同步（`references/multimodal-*.md`）
+- **legal-wiki-audit-repair**：完整六项深检脚本（`scripts/multimodal_audit.py`）、stub 重摄入、sha256 批量修复（`references/multimodal-*.md`）
+- **chinese-law-paper-writing**：note-level 引注格式（`references/multimodal-citation-format.md`，与 citation-integrity 互补）
 
 ## 相对 `master/main` 的优化与修改
 
@@ -59,7 +67,7 @@
 ### 5. 可回归验证
 
 - 增加仓库级 Hermes/Codex 兼容性测试与脚本安全测试。
-- 当前分支已验证：兼容性测试 5/5、安全测试 7/7、三个 Codex `quick_validate.py` 均通过。
+- 当前分支已验证：兼容性测试 7/7、安全测试 9/9、三个 Codex `quick_validate.py` 均通过。
 - 本机 Hermes 隔离目录验证三个技能均能以 `local / enabled` 发现，并保留完整支持文件。
 
 以上修改只改变兼容性、文档、脚本安全和验证层，不删除原有方法论内容；详细设计与实施记录见 [`docs/superpowers/`](docs/superpowers/)。
