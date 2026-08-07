@@ -5,8 +5,11 @@
 用法：
 1. 改下方 WIKI（wiki根目录）与 PLAN（键=待改页面相对wiki根的路径，如 'concepts/xxx.md'；
    值=[(法规范页文件名-无.md, 说明30-80字), ...]，每页2-4条）；
-2. DRY_RUN=1 python3 insert_norm_sections.py   # 试跑：只校验不写
-3. python3 insert_norm_sections.py             # 正式执行
+2. `python3 insert_norm_sections.py /path/to/wiki --dry-run`   # 试跑：只校验不写
+3. `python3 insert_norm_sections.py /path/to/wiki`             # 正式执行
+
+也可用 `WIKI_PATH`/`DRY_RUN=1` 兼容旧调用；写入前会备份到 wiki 内的
+`.maintenance/norm-reference-2026-08/before/`，且不会覆盖已有备份。
 
 规则（2026-08批次2实测固化）：
 - 插在 '## 与比较页的关联' 之前；该anchor不存在时回退 '## 相关概念'；
@@ -14,10 +17,13 @@
 - 说明30-80字（CJK计数）；链接必须真实存在于 entities/法规范/ 下（os.walk）；
 - 页面已有 '## 规范依据' 则跳过（幂等）；任务简称≠实际文件名时以实际文件为准。
 """
-import os, sys
+import argparse
+import os
+import shutil
+import sys
+import tempfile
 
-WIKI = "/Users/shawndeng/Desktop/法学wiki/工伤认定群案研究Wiki"
-NORM_ROOT = os.path.join(WIKI, "entities", "法规范")
+WIKI = NORM_ROOT = BACKUP_DIR = None
 
 PLAN = {
     # 示例（batch2实测）：
@@ -39,7 +45,59 @@ def link_exists(link):
     return False
 
 
-def main():
+def configure_paths(wiki, backup_dir=None):
+    global WIKI, NORM_ROOT, BACKUP_DIR
+    WIKI = os.path.abspath(os.path.expanduser(wiki))
+    NORM_ROOT = os.path.join(WIKI, "entities", "法规范")
+    if not os.path.isdir(WIKI) or not os.path.isdir(NORM_ROOT):
+        raise ValueError("wiki must contain entities/法规范")
+    BACKUP_DIR = os.path.abspath(os.path.expanduser(backup_dir)) if backup_dir else os.path.join(
+        WIKI, ".maintenance", "norm-reference-2026-08", "before"
+    )
+    if os.path.commonpath([BACKUP_DIR, NORM_ROOT]) == NORM_ROOT:
+        raise ValueError("backup directory must not be inside entities/法规范")
+
+
+def safe_page_path(filename):
+    path = os.path.abspath(os.path.join(WIKI, filename))
+    if os.path.commonpath([path, WIKI]) != WIKI:
+        raise ValueError(f"planned page escapes wiki root: {filename}")
+    return path
+
+
+def atomic_write(path, text):
+    fd, tmp_name = tempfile.mkstemp(prefix=".norm-reference.", suffix=".tmp", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def env_truthy(name):
+    return os.environ.get(name, "").lower() in {"1", "true", "yes", "on"}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("wiki", nargs="?", default=os.environ.get("WIKI_PATH"),
+                        help="wiki root (or set WIKI_PATH)")
+    parser.add_argument("--dry-run", action="store_true", help="validate and preview without writing")
+    parser.add_argument("--backup-dir", help="backup directory; defaults to <wiki>/.maintenance/.../before")
+    args = parser.parse_args(argv)
+    if not args.wiki:
+        parser.error("wiki root is required (pass it as an argument or set WIKI_PATH)")
+    try:
+        configure_paths(args.wiki, args.backup_dir)
+    except ValueError as exc:
+        parser.error(str(exc))
+    dry_run = args.dry_run or env_truthy("DRY_RUN")
+
     if not PLAN:
         sys.exit("PLAN 为空：先在脚本顶部填写待插入页面与链接清单")
     ok = True
@@ -58,8 +116,9 @@ def main():
     if not ok:
         sys.exit(1)
 
+    changes = []
     for fn, items in PLAN.items():
-        path = os.path.join(WIKI, fn)
+        path = safe_page_path(fn)
         with open(path, encoding="utf-8") as f:
             text = f.read()
         if NEW_SECTION in text:
@@ -72,13 +131,31 @@ def main():
             sys.exit(1)
         block = NEW_SECTION + "\n\n" + "".join(f"- [[{link}]]——{desc}\n" for link, desc in items) + "\n"
         new_text = text.replace(anchor, block + anchor, 1)
-        if os.environ.get("DRY_RUN"):
+        if dry_run:
             print(f"[DRY-RUN 通过] {fn}: {len(items)}条")
             continue
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new_text)
-        print(f"[已插入] {fn}: {len(items)}条")
+        changes.append((fn, path, new_text))
+
+    if dry_run or not changes:
+        print("DONE")
+        return 0
+
+    # Back up every page before the first write and never overwrite an old backup.
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    backup_pairs = []
+    for fn, path, _ in changes:
+        destination = os.path.join(BACKUP_DIR, fn)
+        if os.path.exists(destination):
+            raise RuntimeError(f"backup already exists; refusing to clobber it: {destination}")
+        backup_pairs.append((path, destination))
+    for path, destination in backup_pairs:
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        shutil.copy2(path, destination)
+    for fn, path, new_text in changes:
+        atomic_write(path, new_text)
+        print(f"[已插入] {fn}: {len(PLAN[fn])}条")
     print("DONE")
+    return 0
 
 
 if __name__ == "__main__":

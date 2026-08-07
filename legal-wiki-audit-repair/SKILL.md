@@ -1,11 +1,10 @@
 ---
 name: legal-wiki-audit-repair
-description: Use when 全面排查、系统体检或修复法学Wiki；批量操作Wiki（重命名、重编号、wikilink迁移、反向链接补齐、批量填充页面）。先审计后分批整改。
-version: 3.1.0
-author: Hermes Agent
+description: Use when auditing or repairing a legal research wiki.
 license: MIT
-platforms: [linux, macos, windows]
 metadata:
+  version: "4.0.0"
+  author: Hermes Agent
   hermes:
     tags: [legal-wiki, audit, repair, obsidian, quality-control, batch, rename, wikilink, maintenance]
     related_skills: [legal-research-wiki, llm-wiki, obsidian]
@@ -17,6 +16,8 @@ metadata:
 
 本技能用于对法学研究Obsidian/LLM Wiki进行全库体检、问题分级、整改设计、分批修复和复核。它关注的不只是YAML、死链接和文件数量，还要判断页面是否真正支持学术研究：来源能否追溯、案例分析是否套模板、论文—案例—概念—底稿关系是否具体、群案比较层是否存在，以及假说是否被误写成事实。
 
+> **v3.2.0 合并说明**：吸收 multimodal-wiki（Karpathy LLM Wiki 扩展分支）四项通用巡检纪律——LOG-ROTATE（log 超 500 条轮转）、SHA256-DRIFT（raw 源文件漂移检测）、CONTESTED（矛盾标记）、CLOSED-WORLD QUERY（闭世界查询，禁联网补缺禁编造），见「九点七」。方法论与法学纪律不变。
+>
 > **v3.0.0 合并说明**：原 `wiki-batch-operations` v1.0.0（批量重命名/重编号/wikilink迁移/反向链接补齐/批量填充/论文—案例链接同步）已并入本技能，执行细则见 `references/batch-operations.md`，配套脚本在 `scripts/`。批量操作触发词：重命名、重编号、链接迁移、反向链接补齐、批量填充、按编号整理。
 
 > 研究设计页审计使用五问框架（见 `chinese-law-paper-writing` references）；行文思路是项目特定的（本项目=群案研究三维分析框架，见 `legal-research-wiki`），审计时不得用通用模板套项目。
@@ -346,7 +347,7 @@ index可达不等于知识上有关联。计算分类间边矩阵、每类入站
 3. **中文文件名禁止字符切片**：必须 `re.match(r'^案例(\d+)-(.*)$', stem)` 提取编号。
 4. **重命名必须全库替换 wikilink**（`[[旧名]]` 和 `[[旧名|` 两种形式）；移动目录不需要改链接。
 5. **批量补反向链接必须排除自链接**、去重、章节边界正确（否则吞标题）。
-6. **表格单元格内带别名 wikilink 用 `&#124;`**（`\|` 不被 Obsidian 识别）。
+6. **表格单元格内带别名 wikilink 用 `\|`（转义管道符）**（PIPE-FIX 教训：`&#124;` 不被 Obsidian 识别为别名分隔符，是死链；`\|` 才是唯一正确形式，见 4.4 节）。
 7. **写入前先 DRY_RUN=1 试跑**；并行子代理同批编辑时编号以编辑时刻文件为准。
 8. **验收**：死链0、错误模式残留0（`案例N-M-`、`案例N--`）、单向链接0、编号连续。
 
@@ -375,6 +376,24 @@ index可达不等于知识上有关联。计算分类间边矩阵、每类入站
 - 文件名匹配：批量修正一律用 `案例N-` 前缀定位，全名匹配两次失败；
 - outcome归类边界：和解/撤回监督申请/撤回复议申请→撤诉类；检察监督后行政重新认定→认定工伤类；民事撤销赔偿协议≠行政撤销重作；「不予认定工伤决定」含「认定工伤」子串，判断顺序=不认定先于认定工伤；「重新认定」字样不得作为撤销重作判定词；
 - 统计复核：字段版与人工口径有差异时逐项归因，不直接改定稿数字。
+
+## 九点七、通用巡检增强纪律（v3.2.0 吸收 multimodal-wiki audit.py）
+
+以下四项从 multimodal-wiki（Karpathy LLM Wiki 扩展分支）吸收，适配法学知识库：
+
+**LOG-ROTATE（log 轮转）**：`log.md` 超过 **500 条** `## [YYYY-MM-DD]` 条目时，必须轮转：把现有 `log.md` 改名为 `log-YYYY.md`（存档），新建空 `log.md`（保留头部说明）。检修脚本自动检测条目数并在问题清单提示。**目的**：防止 log 无限膨胀导致定向读取变慢。
+
+**SHA256-DRIFT（raw 源文件漂移检测）**：`raw/` 下的 `.md` 提取文件若 frontmatter 带 `sha256:` 字段，检修时重算正文（`---` 之后的部分）哈希并与存储值比对——不一致说明源文件被改动（raw 层应不可变）或摄入工具编码差异。发现漂移：①批量漂移（10+文件同时）优先怀疑系统性原因（占位哈希、行尾符、工具编码），用 bulk-fix 脚本一次性重算；②单个漂移 → 核对是否真实源变更，确认后更新哈希并在台账记录。**注意**：法学库 raw 多为 DOCX/PDF 原件，`.md` 提取文件可选加 sha256；没有该字段不报错。
+
+**CONTESTED（矛盾标记）**：检修时扫描全库 frontmatter 中的 `contested: true` 和 `contradictions: [页面名]` 字段，列出供用户审阅。**法学用法**：学术分歧观点（如"举证责任分配"不同学说）正是 contested 的适用场景——同一比较页/概念页存在对立立场时，用 `contested: true` 显式标记，避免 AI 静默覆盖一方。**标记纪律**：①矛盾必须保留双方立场+日期+来源，不静默覆盖；②检修报告单独列出 contested 页；③提交论文前必须逐页核验 contested 项是否已解决。
+
+**CLOSED-WORLD QUERY（闭世界查询纪律，v3.2.0 新增）**：查询/写作支撑知识库时**只用 wiki 内容回答**，禁止用 web_search/web_extract 联网补缺，禁止用模型自身记忆编造来源。规则：
+- 知识库未覆盖的问题 → 如实说"库内无此内容"，标记 `[来源不明]`，并提供摄入方案（先摄入再答）；
+- **桩/空壳页面不算覆盖**——页面只有 frontmatter 或占位正文时，视为未摄入，禁止脑补内容（对应法学纪律：121案未摄入前统计口径不得写成已验证结论）；
+- 联网检索属于**摄入环节**（用户授权后为补充素材才用），永远不属于查询环节；
+- 来源性主张（法条/案号/文献页码）必须能回溯到库内页面 + raw 原始材料，否则不得写入。
+
+**脚本**：`~/.hermes/scripts/wiki_daily_check.py` v2 已融合上述三项检查（LOG-ROTATE / SHA256-DRIFT / CONTESTED + 原法学检查），每日检修 cron 自动运行。
 
 ## 十、全量验收标准
 
@@ -422,6 +441,16 @@ index可达不等于知识上有关联。计算分类间边矩阵、每类入站
 7. 验收计数和明确未处理事项。
 
 如果用户只问“下一步是什么”，只回答第一批范围、每页一项修改和验收标准，不重复整份审计。
+
+## 十三、技能自身测试验证方法（skill 更新后必测）
+
+更新本技能（或本仓库任何法学技能）后，用以下方法验证，防止改坏：
+
+1. **仓库级兼容性测试**（本仓库 `tests/` 目录）：`python3 tests/test_skill_compatibility.py`（frontmatter 格式/description ≤60字符/openai.yaml 结构/README 安装说明）＋ `python3 tests/test_script_safety.py`（脚本安全）。12 项全过才算通过。
+2. **Hermes 加载测试**：`hermes skills list` 确认技能可见；用 skill_view 加载确认 `readiness_status: available`、`metadata.version` 正确。
+3. **真实知识库只读回归**：对知识库跑全库体检（正式页数、YAML 错误 0、死链 0、index 覆盖、双向链接对称）——验证修改没有破坏检查逻辑。
+4. **真实任务试跑**：拿一个小任务实际用新版本执行（如每日检修流程），确认流程顺畅、输出符合预期。
+5. **闭世界验证**：查询/审计结论必须全部能回溯到库内页面 + raw 原始材料；库内无依据的表述一律不得出现（见九点七 CLOSED-WORLD QUERY）。
 
 ## Verification Checklist
 

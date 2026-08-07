@@ -1,0 +1,4 @@
+interface:
+  display_name: "法学研究 Wiki 建库"
+  short_description: "构建并维护来源可追溯的中国法学研究 Obsidian Wiki"
+  default_prompt: "Use $legal-research-wiki to build this Chinese legal research wiki."

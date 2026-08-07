@@ -1,0 +1,4 @@
+interface:
+  display_name: "法学 Wiki 审计修复"
+  short_description: "审计并分批修复法学研究 Wiki 的结构、链接和内容质量"
+  default_prompt: "Use $legal-wiki-audit-repair to audit this legal research wiki before repairs."

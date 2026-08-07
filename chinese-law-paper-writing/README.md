@@ -85,41 +85,27 @@ PLAN → RESEARCH → OUTLINE → DRAFT → REVISE → AUDIT
 
 ## 快速安装
 
-### Hermes Agent
+### 当前优化分支
 
-Hermes 的 Skills System 文档将 `~/.hermes/skills/`列为本地 Skill 目录。以下克隆命令以仓库地址可访问为前提；私有仓库须先为当前 Git 客户端配置相应 GitHub 读取权限。
+分支尚未合并到 `main` 时，请按[仓库根目录的当前分支安装说明](../README.md#current-branch-install)，复制完整的 `chinese-law-paper-writing` 目录；这样 `references/`、模板和 DOCX 脚本会一并安装。
 
-PowerShell：
-
-```powershell
-git clone <本技能包仓库地址> `
-  "$HOME\.hermes\skills\chinese-law-paper-writing"
-```
-
-Bash：
+### Hermes Agent（合并到 `main` 后）
 
 ```bash
-git clone <本技能包仓库地址> \
-  ~/.hermes/skills/chinese-law-paper-writing
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
+```
+
+脚本或 CI 环境加 `--yes`：
+
+```bash
+hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing --yes
 ```
 
 参考：[Hermes Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)、[Working with Skills](https://hermes-agent.nousresearch.com/docs/guides/work-with-skills/)。
 
 ### OpenAI Codex
 
-PowerShell：
-
-```powershell
-git clone <本技能包仓库地址> `
-  "$HOME\.codex\skills\chinese-law-paper-writing"
-```
-
-Bash：
-
-```bash
-git clone <本技能包仓库地址> \
-  ~/.codex/skills/chinese-law-paper-writing
-```
+请按[仓库根目录的 Codex 安装说明](../README.md#openai-codex)，将本技能目录复制到 `$HOME\.codex\skills\chinese-law-paper-writing`。
 
 新建任务后，直接要求使用 `chinese-law-paper-writing`。Codex 的项目级持久指令使用 `AGENTS.md`，不是 `CODEX.md`；参见 [Custom instructions with AGENTS.md](https://developers.openai.com/codex/guides/agents-md)。
 
@@ -310,7 +296,7 @@ gh auth status
 
 不适用于：
 
-- 法律专著、教材、评注或实务指南；请使用 [chinese-law-book-writing](<本技能包仓库地址>)；
+- 法律专著、教材、评注或实务指南；请使用专门的 `chinese-law-book-writing` 技能（如已安装）；
 - 法律意见书、合同、诉状或具体客户法律建议；
 - 硕士、博士等学位论文；
 - 英文期刊或其他学科论文；

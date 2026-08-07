@@ -11,8 +11,10 @@ md → docx（法学论文交付）通用脚本
      追加文献部分红），供用户审稿快速定位 AI 改动。
 
 用法：
-  1. 修改下方 SRC（模板docx）、MD（新稿md）、DST（输出路径）与 RED_* 配置
-  2. python3 md2docx_footnotes.py   （或 uv run --offline --with python-docx python3 ...）
+  1. 直接传入 `--src template.docx --md draft.md --dst output.docx`，
+     或修改下方 SRC/MD/DST 配置后无参数运行
+  2. python3 md2docx_footnotes.py --src template.docx --md draft.md --dst output.docx
+     （或 uv run --offline --with python-docx python3 ...）
   3. 验证输出：正文脚注引用数 == md脚注条数、唯一ID连续、红色run数符合预期
 
 已知要点（2026-08 实测）：
@@ -27,7 +29,12 @@ md → docx（法学论文交付）通用脚本
 - 破折号纪律：生成前先清正文破折号（——），文献标题内的保留。
 - 红色段落判定按段落开头前缀；**插入内容必须独立成段**（追加到原段尾会让判定失效）。
 """
-import re, shutil, zipfile, os
+import argparse
+import re
+import shutil
+import tempfile
+import zipfile
+import os
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.oxml.ns import qn
@@ -41,13 +48,58 @@ DST = "/path/to/output.docx"
 TMP = "/tmp/_no_fn.docx"
 
 # ---- 修改标注版配置（干净版留空即可） ----
-# 正文整段标红：段落开头前缀元组（如新增案例段的开头文字）
 RED_PARA_STARTS = ()
-# 脚注整条标红：编号集合（新增脚注条）
 RED_FOOTNOTES = ()
-# 追加文献标红：某条脚注内从此标记起标红（如 "；杨思斌："）
 RED_SPLIT_MARK = ""
-RED_FOOTNOTE_ID = 0   # 配合 RED_SPLIT_MARK 的脚注编号
+RED_FOOTNOTE_ID = 0
+
+
+def configure_cli():
+    """Resolve paths from CLI while preserving the historical config block."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--src", help="template DOCX path; otherwise use SRC above")
+    parser.add_argument("--md", dest="md_path", help="draft Markdown path; otherwise use MD above")
+    parser.add_argument("--dst", dest="dst_path", help="output DOCX path; otherwise use DST above")
+    parser.add_argument("--tmp", dest="tmp_path", help="optional working DOCX path")
+    parser.add_argument("--red-para-start", action="append", default=None,
+                        help="paragraph prefix to mark red; repeatable")
+    parser.add_argument("--red-footnote", type=int, action="append", default=None,
+                        help="footnote ID to mark red; repeatable")
+    parser.add_argument("--red-split-mark", default=None, help="suffix marker to mark red in one footnote")
+    parser.add_argument("--red-footnote-id", type=int, default=None)
+    args = parser.parse_args()
+    src = args.src or SRC
+    md_path = args.md_path or MD
+    dst_path = args.dst_path or DST
+    if any(value.startswith("/path/to/") for value in (src, md_path, dst_path)):
+        parser.error("provide --src, --md and --dst, or replace the SRC/MD/DST config values")
+    src = os.path.abspath(os.path.expanduser(src))
+    md_path = os.path.abspath(os.path.expanduser(md_path))
+    dst_path = os.path.abspath(os.path.expanduser(dst_path))
+    if not os.path.isfile(src):
+        parser.error(f"template DOCX does not exist: {src}")
+    if not os.path.isfile(md_path):
+        parser.error(f"draft Markdown does not exist: {md_path}")
+    if os.path.abspath(src) == dst_path:
+        parser.error("output path must differ from the template DOCX")
+    if not os.path.isdir(os.path.dirname(dst_path)):
+        parser.error(f"output directory does not exist: {os.path.dirname(dst_path)}")
+    if args.tmp_path:
+        tmp_path = os.path.abspath(os.path.expanduser(args.tmp_path))
+        remove_tmp = False
+    else:
+        fd, tmp_path = tempfile.mkstemp(prefix="md2docx-", suffix=".docx", dir=os.path.dirname(dst_path))
+        os.close(fd)
+        remove_tmp = True
+    red_para_starts = tuple(args.red_para_start) if args.red_para_start is not None else RED_PARA_STARTS
+    red_footnotes = tuple(args.red_footnote) if args.red_footnote is not None else RED_FOOTNOTES
+    red_split_mark = args.red_split_mark if args.red_split_mark is not None else RED_SPLIT_MARK
+    red_footnote_id = args.red_footnote_id if args.red_footnote_id is not None else RED_FOOTNOTE_ID
+    return src, md_path, dst_path, tmp_path, remove_tmp, red_para_starts, red_footnotes, red_split_mark, red_footnote_id
+
+
+SRC, MD, DST, TMP, REMOVE_TMP, RED_PARA_STARTS, RED_FOOTNOTES, RED_SPLIT_MARK, RED_FOOTNOTE_ID = configure_cli()
+
 # ==========================================
 
 shutil.copy(SRC, TMP)
@@ -123,7 +175,7 @@ for line in body_md.split("\n"):
     else:                                               # 正文
         red_para = s.startswith(RED_PARA_STARTS)
         p = add_para("正文1")
-        for idx, part in enumerate(re.split(r"\[脚注(\d+)\]", s)):
+        for idx, part in enumerate(re.split(r"\[(?:脚注)?(\d+)\]", s)):
             if idx % 2 == 0:
                 if part:
                     r = p.add_run(part); set_run_font(r, "宋体", "Times New Roman", 10.5, red=red_para)
@@ -194,15 +246,61 @@ for item in zin.infolist():
     items[item.filename] = (item, data)
 zin.close()
 
+# A minimal python-docx template may not already contain a footnotes part.
+# Add the part plus its package relationship/content-type so the result remains
+# a valid Word package instead of failing during post-generation verification.
+if "word/footnotes.xml" not in items:
+    items["word/footnotes.xml"] = (zipfile.ZipInfo("word/footnotes.xml"), footnotes_xml)
+
+REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"
+CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
+
+rels_name = "word/_rels/document.xml.rels"
+if rels_name in items:
+    rel_root = etree.fromstring(items[rels_name][1])
+    if not any(node.get("Type") == REL_TYPE for node in rel_root):
+        used_ids = {node.get("Id") for node in rel_root}
+        rel_id = "rIdFootnotes"
+        suffix = 2
+        while rel_id in used_ids:
+            rel_id = f"rIdFootnotes{suffix}"
+            suffix += 1
+        etree.SubElement(rel_root, f"{{{REL_NS}}}Relationship", {
+            "Id": rel_id, "Type": REL_TYPE, "Target": "footnotes.xml"
+        })
+        items[rels_name] = (items[rels_name][0], etree.tostring(rel_root, xml_declaration=True, encoding="UTF-8"))
+
+ct_name = "[Content_Types].xml"
+if ct_name in items:
+    ct_root = etree.fromstring(items[ct_name][1])
+    footnote_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"
+    if not any(node.get("PartName") == "/word/footnotes.xml" for node in ct_root):
+        etree.SubElement(ct_root, f"{{{CT_NS}}}Override", {
+            "PartName": "/word/footnotes.xml", "ContentType": footnote_type
+        })
+        items[ct_name] = (items[ct_name][0], etree.tostring(ct_root, xml_declaration=True, encoding="UTF-8"))
+
 with zipfile.ZipFile(DST, "w", zipfile.ZIP_DEFLATED) as zout:
     for fname, (info, data) in items.items():
         zout.writestr(info, data)
 
-z = zipfile.ZipFile(DST)
-docxml = z.read("word/document.xml").decode("utf-8")
-refs = re.findall(r'<w:footnoteReference w:id="(\d+)"', docxml)
-red_body = docxml.count('w:val="FF0000"')
-fnxml = z.read("word/footnotes.xml").decode("utf-8")
-red_fn = fnxml.count('w:val="FF0000"')
+with zipfile.ZipFile(DST) as z:
+    docxml = z.read("word/document.xml").decode("utf-8")
+    refs = re.findall(r'<w:footnoteReference w:id="(\d+)"', docxml)
+    red_body = docxml.count('w:val="FF0000"')
+    fnxml = z.read("word/footnotes.xml").decode("utf-8")
+    red_fn = fnxml.count('w:val="FF0000"')
+expected_ids = {str(fid) for fid in fn_map}
+actual_ids = set(re.findall(r'<w:footnote w:id="(\d+)"', fnxml))
+if set(refs) != expected_ids:
+    raise RuntimeError(f"脚注引用与Markdown不一致: refs={sorted(set(refs))}, expected={sorted(expected_ids)}")
+if not expected_ids.issubset(actual_ids):
+    raise RuntimeError(f"footnotes.xml 缺少脚注条目: missing={sorted(expected_ids - actual_ids)}")
 print(f"生成: {DST} | 脚注引用: {len(refs)} 唯一: {len(set(refs))} | "
       f"正文红色run: {red_body} 脚注红色run: {red_fn} | 大小: {os.path.getsize(DST)}")
+if REMOVE_TMP:
+    try:
+        os.unlink(TMP)
+    except FileNotFoundError:
+        pass

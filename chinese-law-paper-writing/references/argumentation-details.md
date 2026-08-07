@@ -86,7 +86,7 @@ version: 1.0.0
 
 ## 五、docx交付（md→docx，真实脚注）
 
-用户交付需要docx版（"格式也很重要"）。做法：**以旧稿docx为模板**（继承样式/页面设置），清空正文，写入新稿，再注入Word真实脚注（python-docx不支持footnotes part，用zipfile替换document.xml占位符+重建footnotes.xml）。完整脚本：`scripts/md2docx_footnotes.py`（改顶部SRC/MD/DST即可复用）。要点：①md脚注标记先统一为[脚注N]（删空[]、[][脚注N]→[脚注N]）；②lxml写xml:space用`{http://www.w3.org/XML/1998/namespace}space`；③uv run网络失败加--offline；④生成后验证脚注引用数==md脚注条数且ID连续；⑤生成前先清正文破折号。
+用户交付需要docx版（"格式也很重要"）。做法：**以旧稿docx为模板**（继承样式/页面设置），清空正文，写入新稿，再注入Word真实脚注（python-docx不支持footnotes part，用zipfile替换document.xml占位符+重建footnotes.xml）。完整脚本：`scripts/md2docx_footnotes.py`，优先传 `--src`、`--md`、`--dst`（也兼容修改顶部配置）。要点：①md脚注标记支持[脚注N]与[N]；②lxml写xml:space用`{http://www.w3.org/XML/1998/namespace}space`；③模板缺少footnotes part时脚本会补齐关系与Content_Types；④uv run网络失败加--offline；⑤生成后验证脚注引用ID集合与Markdown一致；⑥生成前先清正文破折号。
 
 ### 修改标注版（红色标注，user confirmed 2026-08）
 

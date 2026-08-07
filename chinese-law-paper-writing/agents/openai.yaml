@@ -1,0 +1,4 @@
+interface:
+  display_name: "中国法学论文写作"
+  short_description: "以可核验来源规划、起草、修改和审核中国法学期刊论文"
+  default_prompt: "Use $chinese-law-paper-writing to plan or review this Chinese legal journal paper."
