@@ -3,7 +3,7 @@ name: chinese-law-paper-writing
 description: Use when planning, writing or checking Chinese legal papers.
 license: MIT
 metadata:
-  version: "5.0.0"
+  version: "5.1.0"
 ---
 
 # 中国法学论文写作（五问框架融合版）
@@ -276,6 +276,7 @@ metadata:
 - 执行完整流程、选题、提纲、起草或修改时，读取 [workflow.md](references/workflow.md)。
 - 使用法律规范、案例、政策、数据或学术文献时，读取 [evidence-and-legal-validity.md](references/evidence-and-legal-validity.md)。
 - 起草正文、补引注、生成全文或执行引用审核时，必须读取 [citation-integrity.md](references/citation-integrity.md)。
+- 回答知识库查询、写作支撑时，要求每个事实主张能追溯到具体源文件（note-level 溯源，绝对路径 + 来源块）时，读取 [multimodal-citation-format.md](references/multimodal-citation-format.md)（v5.1.0 融合 multimodal-wiki；与 citation-integrity 互补：本文件规定"回答如何呈现来源"，citation-integrity 规定"来源如何核验"）。
 - 适配期刊、摘要、关键词、匿名或投稿要求时，读取 [journal-adaptation.md](references/journal-adaptation.md)。
 - 使用 Obsidian、Markdown 笔记或知识库时，读取 [obsidian-hermes-workflow.md](references/obsidian-hermes-workflow.md)。
 
