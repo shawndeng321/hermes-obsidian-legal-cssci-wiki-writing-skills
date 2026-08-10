@@ -226,7 +226,11 @@ def _release_from_existing_manifest(existing: dict) -> dict:
 
 
 def _write_json(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def _write_locks(root: Path, release: dict) -> None:
