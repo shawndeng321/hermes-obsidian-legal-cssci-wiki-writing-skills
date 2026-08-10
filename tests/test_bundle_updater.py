@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -63,6 +66,121 @@ def make_manifest(version: str, history: list[dict] | None = None) -> dict:
             }
         ],
     }
+
+
+def sha256_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def make_bundle_fixture(version: str = "1.1.0") -> tuple[dict, dict[str, bytes]]:
+    files = {
+        "chinese-law-paper-writing/SKILL.md": b"paper skill\n",
+        "chinese-law-paper-writing/agents/openai.yaml": b"paper agent\n",
+        "legal-research-wiki/SKILL.md": b"wiki skill\n",
+        "legal-research-wiki/agents/openai.yaml": b"wiki agent\n",
+        "legal-wiki-audit-repair/SKILL.md": b"audit skill\n",
+        "legal-wiki-audit-repair/agents/openai.yaml": b"audit agent\n",
+    }
+    manifest = make_manifest(version)
+    manifest["files"] = {
+        path: sha256_bytes(content) for path, content in files.items()
+    }
+    return manifest, files
+
+
+def write_zip(
+    archive: Path,
+    members: dict[str, bytes],
+    *,
+    symlinks: set[str] | None = None,
+) -> Path:
+    memory = io.BytesIO()
+    with zipfile.ZipFile(memory, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for name, content in members.items():
+            if symlinks and name in symlinks:
+                info = zipfile.ZipInfo(name)
+                info.create_system = 3
+                info.external_attr = (stat.S_IFLNK | 0o777) << 16
+                bundle.writestr(info, content)
+            else:
+                bundle.writestr(name, content)
+    archive.write_bytes(memory.getvalue())
+    return archive
+
+
+def bundle_members(
+    manifest: dict,
+    files: dict[str, bytes],
+    *,
+    prefix: str = "repository-root/",
+) -> dict[str, bytes]:
+    release = json.dumps(manifest, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return {
+        f"{prefix}bundle-release.json": release,
+        **{f"{prefix}{path}": content for path, content in files.items()},
+    }
+
+
+def write_installed_skill(
+    skills_root: Path,
+    skill_name: str,
+    files: dict[str, bytes],
+    *,
+    bundle_version: str = "1.0.0",
+) -> None:
+    skill_root = skills_root / skill_name
+    for relative_path, content in files.items():
+        path = skill_root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    lock = {
+        "schema_version": 1,
+        "bundle_id": "hermes-legal-research-skills",
+        "bundle_version": bundle_version,
+        "skill_name": skill_name,
+        "skill_version": "1.0.0",
+        "files": {
+            path: sha256_bytes(content) for path, content in files.items()
+        },
+    }
+    (skill_root / "bundle-lock.json").write_text(
+        json.dumps(lock, sort_keys=True), encoding="utf-8"
+    )
+
+
+def write_installation(skills_root: Path) -> dict[str, dict[str, bytes]]:
+    installed = {
+        "chinese-law-paper-writing": {
+            "SKILL.md": b"local paper\n",
+            "agents/openai.yaml": b"local paper agent\n",
+        },
+        "legal-research-wiki": {
+            "SKILL.md": b"local wiki\n",
+            "agents/openai.yaml": b"local wiki agent\n",
+        },
+        "legal-wiki-audit-repair": {
+            "SKILL.md": b"local audit\n",
+            "agents/openai.yaml": b"local audit agent\n",
+        },
+    }
+    for skill_name, files in installed.items():
+        write_installed_skill(skills_root, skill_name, files)
+    return installed
+
+
+def write_staged_bundle(
+    bundle_root: Path,
+    manifest: dict,
+    files: dict[str, bytes],
+) -> None:
+    bundle_root.mkdir(parents=True, exist_ok=True)
+    (bundle_root / "bundle-release.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+    )
+    for relative_path, content in files.items():
+        path = bundle_root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
 
 
 @contextmanager
@@ -347,6 +465,336 @@ class ReleaseContractTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 module.build_manifest(root, release)
+
+
+class ArchiveSafetyTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_module(UPDATER, f"legal_skills_archive_{self._testMethodName}")
+        self.manifest, self.files = make_bundle_fixture()
+
+    def test_extracts_a_valid_bundle_only_after_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = write_zip(
+                root / "bundle.zip", bundle_members(self.manifest, self.files)
+            )
+
+            bundle_root = self.module.safe_extract_bundle(
+                archive, root / "staging", self.manifest
+            )
+
+            self.assertEqual(bundle_root, root / "staging" / "repository-root")
+            self.assertEqual(
+                (bundle_root / "chinese-law-paper-writing" / "SKILL.md").read_bytes(),
+                b"paper skill\n",
+            )
+            self.module.verify_staged_bundle(bundle_root, self.manifest)
+
+    def test_rejects_traversal_absolute_drive_and_backslash_paths_before_writing(self):
+        hostile_members = (
+            "../escape.txt",
+            "/absolute.txt",
+            "repository-root/../../escape.txt",
+            "C:/drive.txt",
+            "repository-root\\ambiguous.txt",
+        )
+        for index, member in enumerate(hostile_members):
+            with self.subTest(member=member), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                members = bundle_members(self.manifest, self.files)
+                members[member] = b"bad"
+                archive = write_zip(root / f"hostile-{index}.zip", members)
+                destination = root / "staging"
+                destination.mkdir()
+
+                with self.assertRaises(self.module.ArchiveError):
+                    self.module.safe_extract_bundle(
+                        archive, destination, self.manifest
+                    )
+
+                self.assertEqual(list(destination.iterdir()), [])
+                self.assertFalse((root / "escape.txt").exists())
+
+    def test_rejects_symlink_entries_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            members = bundle_members(self.manifest, self.files)
+            link_name = "repository-root/chinese-law-paper-writing/link"
+            members[link_name] = b"../../escape.txt"
+            archive = write_zip(root / "symlink.zip", members, symlinks={link_name})
+            destination = root / "staging"
+            destination.mkdir()
+
+            with self.assertRaisesRegex(self.module.ArchiveError, "symlink"):
+                self.module.safe_extract_bundle(archive, destination, self.manifest)
+
+            self.assertEqual(list(destination.iterdir()), [])
+
+    def test_rejects_case_fold_collisions_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            members = bundle_members(self.manifest, self.files)
+            members["repository-root/Chinese-Law-Paper-Writing/SKILL.md"] = b"collision"
+            archive = write_zip(root / "collision.zip", members)
+            destination = root / "staging"
+            destination.mkdir()
+
+            with self.assertRaisesRegex(self.module.ArchiveError, "case-fold"):
+                self.module.safe_extract_bundle(archive, destination, self.manifest)
+
+            self.assertEqual(list(destination.iterdir()), [])
+
+    def test_rejects_archive_compressed_uncompressed_and_file_count_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = write_zip(
+                root / "bundle.zip", bundle_members(self.manifest, self.files)
+            )
+            for limit_name in (
+                "MAX_ARCHIVE_BYTES",
+                "MAX_UNCOMPRESSED_BYTES",
+                "MAX_ARCHIVE_FILES",
+            ):
+                with self.subTest(limit=limit_name):
+                    destination = root / limit_name
+                    destination.mkdir()
+                    with patch.object(self.module, limit_name, 1):
+                        with self.assertRaises(self.module.ArchiveError):
+                            self.module.safe_extract_bundle(
+                                archive, destination, self.manifest
+                            )
+                    self.assertEqual(list(destination.iterdir()), [])
+
+    def test_rejects_missing_extra_and_hash_mismatched_files_before_writing(self):
+        cases: list[tuple[str, dict[str, bytes]]] = []
+        missing = bundle_members(self.manifest, self.files)
+        missing.pop("repository-root/legal-research-wiki/SKILL.md")
+        cases.append(("missing", missing))
+        extra = bundle_members(self.manifest, self.files)
+        extra["repository-root/unlisted.txt"] = b"extra"
+        cases.append(("extra", extra))
+        mismatched = bundle_members(self.manifest, self.files)
+        mismatched["repository-root/legal-wiki-audit-repair/SKILL.md"] = b"tampered"
+        cases.append(("hash", mismatched))
+
+        for index, (case_name, members) in enumerate(cases):
+            with self.subTest(case=case_name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                archive = write_zip(root / f"case-{index}.zip", members)
+                destination = root / "staging"
+                destination.mkdir()
+
+                with self.assertRaises(self.module.ArchiveError):
+                    self.module.safe_extract_bundle(
+                        archive, destination, self.manifest
+                    )
+
+                self.assertEqual(list(destination.iterdir()), [])
+
+    def test_rejects_archive_manifest_drift_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            drifted = json.loads(json.dumps(self.manifest))
+            drifted["skills"]["legal-research-wiki"] = "9.9.9"
+            members = bundle_members(drifted, self.files)
+            archive = write_zip(root / "drifted.zip", members)
+            destination = root / "staging"
+            destination.mkdir()
+
+            with self.assertRaisesRegex(self.module.ArchiveError, "manifest"):
+                self.module.safe_extract_bundle(archive, destination, self.manifest)
+
+            self.assertEqual(list(destination.iterdir()), [])
+
+    def test_rejects_unsafe_paths_in_the_checked_manifest_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            unsafe_manifest = json.loads(json.dumps(self.manifest))
+            unsafe_manifest["files"]["../outside.txt"] = sha256_bytes(b"bad")
+            members = bundle_members(unsafe_manifest, {**self.files, "../outside.txt": b"bad"})
+            archive = write_zip(root / "unsafe-manifest.zip", members)
+            destination = root / "staging"
+            destination.mkdir()
+
+            with self.assertRaises(self.module.ArchiveError):
+                self.module.safe_extract_bundle(
+                    archive, destination, unsafe_manifest
+                )
+
+            self.assertEqual(list(destination.iterdir()), [])
+            self.assertFalse((root / "outside.txt").exists())
+
+    def test_verify_staged_bundle_rejects_missing_skill_extra_file_wrong_hash_and_drift(self):
+        mutations = ("missing_skill", "extra", "hash", "drift")
+        for mutation in mutations:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                manifest = json.loads(json.dumps(self.manifest))
+                files = dict(self.files)
+                write_staged_bundle(root, manifest, files)
+                if mutation == "missing_skill":
+                    shutil.rmtree(root / "legal-research-wiki")
+                elif mutation == "extra":
+                    (root / "extra.txt").write_text("extra", encoding="utf-8")
+                elif mutation == "hash":
+                    (root / "chinese-law-paper-writing" / "SKILL.md").write_text(
+                        "tampered", encoding="utf-8"
+                    )
+                else:
+                    release_path = root / "bundle-release.json"
+                    release = json.loads(release_path.read_text(encoding="utf-8"))
+                    release["bundle_version"] = "9.9.9"
+                    release_path.write_text(json.dumps(release), encoding="utf-8")
+
+                with self.assertRaises(self.module.ArchiveError):
+                    self.module.verify_staged_bundle(root, self.manifest)
+
+
+class InstallationInspectionTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_module(UPDATER, f"legal_skills_install_{self._testMethodName}")
+        self.manifest, _ = make_bundle_fixture()
+
+    def test_clean_installation_has_exact_report_shape_and_is_not_modified(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_installation(root)
+            before = {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file()
+            }
+
+            report = self.module.inspect_installation(root, self.manifest)
+
+            after = {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(report, {
+                "status": "clean",
+                "modified": [],
+                "deleted": [],
+                "added": [],
+                "missing_skills": [],
+            })
+            self.assertEqual(after, before)
+
+    def test_classifies_modified_deleted_and_added_files_against_local_locks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_installation(root)
+            (root / "chinese-law-paper-writing" / "SKILL.md").write_text(
+                "locally modified\n", encoding="utf-8"
+            )
+            (root / "legal-research-wiki" / "agents" / "openai.yaml").unlink()
+            added = root / "legal-wiki-audit-repair" / "notes" / "local.txt"
+            added.parent.mkdir()
+            added.write_text("local extra\n", encoding="utf-8")
+
+            report = self.module.inspect_installation(root, self.manifest)
+
+            self.assertEqual(report, {
+                "status": "local_changes",
+                "modified": ["chinese-law-paper-writing/SKILL.md"],
+                "deleted": ["legal-research-wiki/agents/openai.yaml"],
+                "added": ["legal-wiki-audit-repair/notes/local.txt"],
+                "missing_skills": [],
+            })
+
+    def test_classifies_a_missing_skill_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_installation(root)
+            shutil.rmtree(root / "legal-research-wiki")
+            before = sorted(path.relative_to(root).as_posix() for path in root.rglob("*"))
+
+            report = self.module.inspect_installation(root, self.manifest)
+
+            after = sorted(path.relative_to(root).as_posix() for path in root.rglob("*"))
+            self.assertEqual(report, {
+                "status": "local_changes",
+                "modified": [],
+                "deleted": [],
+                "added": [],
+                "missing_skills": ["legal-research-wiki"],
+            })
+            self.assertEqual(after, before)
+
+    def test_classifies_invalid_local_lock_metadata_as_modified(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_installation(root)
+            lock_path = root / "chinese-law-paper-writing" / "bundle-lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["bundle_version"] = "not-semver"
+            lock_path.write_text(json.dumps(lock), encoding="utf-8")
+
+            report = self.module.inspect_installation(root, self.manifest)
+
+            self.assertEqual(report, {
+                "status": "local_changes",
+                "modified": ["chinese-law-paper-writing/bundle-lock.json"],
+                "deleted": [],
+                "added": [],
+                "missing_skills": [],
+            })
+
+    def test_formats_small_utf8_changes_as_unified_diff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            installed = root / "installed"
+            staged = root / "staged"
+            relative = Path("chinese-law-paper-writing/SKILL.md")
+            (installed / relative).parent.mkdir(parents=True)
+            (staged / relative).parent.mkdir(parents=True)
+            (installed / relative).write_text("old line\n", encoding="utf-8")
+            (staged / relative).write_text("new line\n", encoding="utf-8")
+
+            result = self.module.format_incoming_diff(
+                installed, staged, [relative.as_posix()]
+            )
+
+            self.assertIn("--- installed/chinese-law-paper-writing/SKILL.md", result)
+            self.assertIn("+++ incoming/chinese-law-paper-writing/SKILL.md", result)
+            self.assertIn("-old line", result)
+            self.assertIn("+new line", result)
+
+    def test_formats_binary_and_large_changes_as_hash_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            installed = root / "installed"
+            staged = root / "staged"
+            binary_path = Path("chinese-law-paper-writing/assets/data.bin")
+            large_path = Path("legal-research-wiki/references/large.txt")
+            old_binary, new_binary = b"\xff\x00old", b"\xff\x00new"
+            old_large = b"a" * (1024 * 1024)
+            new_large = b"b" * (1024 * 1024)
+            for base, relative, content in (
+                (installed, binary_path, old_binary),
+                (staged, binary_path, new_binary),
+                (installed, large_path, old_large),
+                (staged, large_path, new_large),
+            ):
+                (base / relative).parent.mkdir(parents=True, exist_ok=True)
+                (base / relative).write_bytes(content)
+
+            result = self.module.format_incoming_diff(
+                installed,
+                staged,
+                [binary_path.as_posix(), large_path.as_posix()],
+            )
+
+            for relative, old_content, new_content in (
+                (binary_path, old_binary, new_binary),
+                (large_path, old_large, new_large),
+            ):
+                self.assertIn(relative.as_posix(), result)
+                self.assertIn(sha256_bytes(old_content), result)
+                self.assertIn(sha256_bytes(new_content), result)
+            self.assertNotIn("a" * 100, result)
+            self.assertNotIn("b" * 100, result)
 
 
 class UpdateCheckTests(unittest.TestCase):
