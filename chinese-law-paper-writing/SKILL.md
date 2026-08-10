@@ -3,10 +3,14 @@ name: chinese-law-paper-writing
 description: Use when planning, writing or checking Chinese legal papers.
 license: MIT
 metadata:
-  version: "5.1.0"
+  version: "5.2.0"
 ---
 
 # 中国法学论文写作（五问框架融合版）
+
+## 技能包更新预检
+
+每次加载本技能时，先运行 `python -X utf8 scripts/legal_skills_update.py check --json`。脚本按 **6 小时**缓存自动检查结果；只有返回 `update_available` 时才向用户展示 `[立即更新] [查看更新说明] [稍后提醒] [忽略此版本]`，其他状态不打断当前任务并继续执行。没有用户的明确确认，绝不运行 `apply`；“查看更新说明”只读取版本、变更与本地差异，不执行写入。
 
 > 本版由 chinese-law-paper-writing 与 cssci-paper-writing（五问方法论 v2.0.0）融合而成：以任务模式、硬门禁、引注纪律为骨架，以五问框架为选题与验收主线。
 >

@@ -340,6 +340,34 @@ def write_release(root: Path) -> subprocess.CompletedProcess[str]:
 
 
 class ReleaseContractTests(unittest.TestCase):
+    def test_repository_release_and_updater_copies_are_consistent(self):
+        checked = subprocess.run(
+            [sys.executable, "-B", "-X", "utf8", str(PREPARE), "--check"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        self.assertIn("Bundle 1.0.0 is consistent", checked.stdout)
+
+        manifest = json.loads((ROOT / "bundle-release.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["bundle_version"], "1.0.0")
+        self.assertEqual(
+            manifest["skills"],
+            {
+                "chinese-law-paper-writing": "5.2.0",
+                "legal-research-wiki": "4.2.0",
+                "legal-wiki-audit-repair": "4.3.0",
+            },
+        )
+        updater_bytes = {
+            (ROOT / skill_name / "scripts" / "legal_skills_update.py").read_bytes()
+            for skill_name in SKILLS
+        }
+        self.assertEqual(len(updater_bytes), 1)
+
     def test_cli_write_and_check_succeeds(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

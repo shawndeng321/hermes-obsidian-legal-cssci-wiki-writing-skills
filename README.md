@@ -24,9 +24,9 @@
 
 | 技能 | 版本 | 适合什么时候用 | 核心能力 |
 |---|---:|---|---|
-| [`legal-research-wiki`](legal-research-wiki/) | **v4.1.0** | 新建、扩充或重新整理研究库 | 范围优先摄入、PDF/DOCX/图片/音频摄入、交叉引用、六维质量门禁、闭世界查询纪律、Obsidian 云端同步 |
-| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v4.2.0** | 已有 Wiki 出现死链、字段缺失或批量操作需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、统计复核、每日检修（三日迭代）、六项深检脚本、闭世界查询纪律 |
-| [`chinese-law-paper-writing`](chinese-law-paper-writing/) | **v5.1.0** | 选题、研究、起草、修订、审核或期刊适配 | 五问框架、PLAN→ADAPT、证据链、引注门禁、note-level 溯源引注、闭世界查询纪律、DOCX 脚注 |
+| [`legal-research-wiki`](legal-research-wiki/) | **v4.2.0** | 新建、扩充或重新整理研究库 | 范围优先摄入、PDF/DOCX/图片/音频摄入、交叉引用、六维质量门禁、闭世界查询纪律、Obsidian 云端同步 |
+| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v4.3.0** | 已有 Wiki 出现死链、字段缺失、批量操作或技能包更新需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、统计复核、每日检修（三日迭代）、六项深检脚本、闭世界查询纪律 |
+| [`chinese-law-paper-writing`](chinese-law-paper-writing/) | **v5.2.0** | 选题、研究、起草、修订、审核或期刊适配 | 五问框架、PLAN→ADAPT、证据链、引注门禁、note-level 溯源引注、闭世界查询纪律、DOCX 脚注 |
 
 ## 2026-08 更新内容
 

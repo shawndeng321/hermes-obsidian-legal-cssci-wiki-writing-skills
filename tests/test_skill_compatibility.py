@@ -20,12 +20,12 @@ EXPECTED_DESCRIPTIONS = {
     "legal-research-wiki":
         "Use when building a Chinese legal research wiki.",
     "legal-wiki-audit-repair":
-        "Use when auditing or repairing a legal research wiki.",
+        "Use when auditing/repairing a wiki or updating its Bundle.",
 }
 EXPECTED_VERSIONS = {
-    "chinese-law-paper-writing": "5.1.0",
-    "legal-research-wiki": "4.1.0",
-    "legal-wiki-audit-repair": "4.2.0",
+    "chinese-law-paper-writing": "5.2.0",
+    "legal-research-wiki": "4.2.0",
+    "legal-wiki-audit-repair": "4.3.0",
 }
 MULTIMODAL_FILES = (
     "chinese-law-paper-writing/references/multimodal-citation-format.md",
@@ -59,6 +59,27 @@ def load_skill(path: Path) -> tuple[dict, str]:
 
 
 class SkillCompatibilityTests(unittest.TestCase):
+    def test_bundle_updater_is_wired_identically_into_all_skills(self) -> None:
+        updaters = [
+            ROOT / name / "scripts" / "legal_skills_update.py"
+            for name in SKILLS
+        ]
+        self.assertTrue(all(path.exists() for path in updaters))
+        self.assertEqual(len({path.read_bytes() for path in updaters}), 1)
+
+        descriptions = {}
+        for skill_name in SKILLS:
+            frontmatter, body = load_skill(ROOT / skill_name / "SKILL.md")
+            descriptions[skill_name] = frontmatter["description"]
+            self.assertIn("legal_skills_update.py check --json", body)
+            self.assertIn("6 小时", body)
+            self.assertIn("update_available", body)
+            self.assertIn("明确确认", body)
+
+        self.assertIn("updating its Bundle", descriptions["legal-wiki-audit-repair"])
+        for skill_name in SKILLS[:-1]:
+            self.assertNotIn("updating its Bundle", descriptions[skill_name])
+
     def test_common_frontmatter_contract(self) -> None:
         for skill_name in SKILLS:
             with self.subTest(skill=skill_name):

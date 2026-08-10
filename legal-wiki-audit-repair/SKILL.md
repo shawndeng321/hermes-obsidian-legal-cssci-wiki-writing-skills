@@ -1,9 +1,9 @@
 ---
 name: legal-wiki-audit-repair
-description: Use when auditing or repairing a legal research wiki.
+description: Use when auditing/repairing a wiki or updating its Bundle.
 license: MIT
 metadata:
-  version: "4.2.0"
+  version: "4.3.0"
   author: Hermes Agent
   hermes:
     tags: [legal-wiki, audit, repair, obsidian, quality-control, batch, rename, wikilink, maintenance]
@@ -11,6 +11,10 @@ metadata:
 ---
 
 # 法学Wiki全面排查与修复
+
+## 技能包更新预检
+
+每次加载本技能时，先运行 `python -X utf8 scripts/legal_skills_update.py check --json`。脚本按 **6 小时**缓存自动检查结果；只有返回 `update_available` 时才向用户展示 `[立即更新] [查看更新说明] [稍后提醒] [忽略此版本]`，其他状态不打断当前任务并继续执行。没有用户的明确确认，绝不运行 `apply`；“查看更新说明”只读取版本、变更与本地差异，不执行写入。
 
 ## Overview
 

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "bundle_id": "hermes-legal-research-skills",
+  "bundle_version": "1.0.0",
+  "skill_name": "legal-wiki-audit-repair",
+  "skill_version": "4.3.0",
+  "files": {
+    "agents/openai.yaml": "5f007877c625bc196e67aeb8494f8c4fc2ee2d972e5f43280fb3fa4a7ceeed08",
+    "LICENSE": "53ada70b396ed840311c2c804e81cd22d7a7cbc88bfb9a0131e7f8cdec3fdfd2",
+    "README.md": "3e8cc5d2942b99225bcbe1d8744df9824b30f0a4a71acf9696660d29dc6cf880",
+    "references/batch-operations.md": "aaf5ac00a86ae7c42b32bcf1f5cf8ccabaae6ddfe0e4c3cd782f19dc8b06ce89",
+    "references/comparison-page-format.md": "5fa368a6626134b18e35b1183cfbceb07c86e66a121c45c523c49102624192ac",
+    "references/group-case-stats-extraction.md": "68b1bff721a35c07185f4b1b80c7cd46731025ab08b7c1e2f9e26f82b45f75a0",
+    "references/multimodal-reingest-stubs.md": "ada891a45cfaac5133b721a5758cc458ea33e615f3ba47d13a12bf8168596cf9",
+    "references/multimodal-sha256-bulk-fix.md": "d347bdc7b2f9f9d16ee1272441634891da6ee4e943a2a43d3a2cf0526196a378",
+    "references/paper-case-theme-mapping.md": "fd1a24a7b4fb0a5ef41307ec2c19d24971b21b685d33293b0d1148f85b5ff065",
+    "references/pure-link-verification.md": "455991858770dcf198bc1ea92c2d2859bc0cd136b9dffc719c12052f1c077449",
+    "scripts/insert_norm_sections.py": "499428d9dea8951c9f99eb6ae4b23244fbec663a4b10a395e143104365c9eccb",
+    "scripts/legal_skills_update.py": "73d7650e3a3ddd27ed7c4992c94ddf06e5c3b02f92c8edf0ea98d995a0d43b80",
+    "scripts/multimodal_audit.py": "8ff3e68d06f3dbb9e7780de02e0228f553cb8fbb8fb590a55a55299e703d73ab",
+    "scripts/scan_missing_paper_case_links.py": "730220d961091acdce8be664005384bc2f24a9ac66f4efaf67627f9a11dc26b5",
+    "scripts/sync_paper_case_links.py": "2e0dcc2b25b307a3175fa0b65c5a9decf7d4a1da984d6b1c923319a8aca7e1a1",
+    "scripts/verify_case_link_sections.py": "f81454aad64958c5af93b0e943f986ceb34c8365d24a90857a6327676b232393",
+    "SKILL.md": "1f7cfdd3e844249eddb80854e790611119be8b4d5cfbc84ccdb3e0a98e726da6"
+  }
+}

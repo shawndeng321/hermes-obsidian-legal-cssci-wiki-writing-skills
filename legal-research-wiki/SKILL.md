@@ -3,10 +3,14 @@ name: legal-research-wiki
 description: Use when building a Chinese legal research wiki.
 license: MIT
 metadata:
-  version: "4.1.0"
+  version: "4.2.0"
 ---
 
 # Legal Research Wiki
+
+## 技能包更新预检
+
+每次加载本技能时，先运行 `python -X utf8 scripts/legal_skills_update.py check --json`。脚本按 **6 小时**缓存自动检查结果；只有返回 `update_available` 时才向用户展示 `[立即更新] [查看更新说明] [稍后提醒] [忽略此版本]`，其他状态不打断当前任务并继续执行。没有用户的明确确认，绝不运行 `apply`；“查看更新说明”只读取版本、变更与本地差异，不执行写入。
 
 Build and maintain an LLM Wiki for legal academic research, especially administrative law
 group case studies and paper writing. Extends the general `llm-wiki` skill with
