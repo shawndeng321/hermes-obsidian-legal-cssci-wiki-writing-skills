@@ -1029,14 +1029,138 @@ class SourceTransactionTests(unittest.TestCase):
 
         with self.fixture() as fixture:
             target = fixture.skills_root / SKILLS[0]
-            replacement = fixture.root / "paper-link-target"
-            target.rename(replacement)
-            try:
-                target.symlink_to(replacement, target_is_directory=True)
-            except OSError as exc:
-                self.skipTest(f"directory symlinks unavailable: {exc}")
-            with self.assertRaisesRegex(self.module.ArchiveError, "symlink"):
-                self.module.detect_installation_mode(fixture.skills_root, SKILLS)
+            with patch.object(
+                self.module.Path,
+                "is_symlink",
+                autospec=True,
+                side_effect=lambda path: path == target,
+            ):
+                with self.assertRaisesRegex(self.module.ArchiveError, "symlink"):
+                    self.module.detect_installation_mode(fixture.skills_root, SKILLS)
+
+    def test_rejects_overlapping_transaction_paths_before_any_state_write(self):
+        cases = (
+            (
+                "state-inside-skills",
+                lambda fixture: fixture.skills_root / "transaction-state",
+                lambda fixture: fixture.root / "invalid-staged",
+            ),
+            (
+                "state-inside-managed-skill",
+                lambda fixture: fixture.skills_root / SKILLS[0] / "transaction-state",
+                lambda fixture: fixture.root / "invalid-staged",
+            ),
+            (
+                "state-inside-staged",
+                lambda fixture: fixture.staged_root / "transaction-state",
+                lambda fixture: fixture.staged_root,
+            ),
+            (
+                "staged-inside-skills",
+                lambda fixture: fixture.root / "unused-state",
+                lambda fixture: fixture.skills_root / "invalid-staged",
+            ),
+            (
+                "staged-is-managed-skill",
+                lambda fixture: fixture.root / "unused-state",
+                lambda fixture: fixture.skills_root / SKILLS[0],
+            ),
+        )
+        for name, state_path, staged_path in cases:
+            with self.subTest(name=name), self.fixture() as fixture:
+                before = snapshot_tree(fixture.skills_root)
+                state_root = state_path(fixture)
+                staged_root = staged_path(fixture)
+
+                result = self.module.apply_source_transaction(
+                    fixture.skills_root,
+                    staged_root,
+                    fixture.manifest,
+                    state_root,
+                )
+
+                self.assertEqual(result["status"], "rejected")
+                self.assertEqual(snapshot_tree(fixture.skills_root), before)
+                self.assertFalse(state_root.exists())
+                self.assertFalse(
+                    any(path.is_file() for path in fixture.root.rglob("state.json"))
+                )
+
+    def test_cli_diff_emits_a_bounded_json_success_result(self):
+        with self.fixture() as fixture:
+            manifest_path = fixture.root / "cached-manifest.json"
+            manifest_path.write_text(
+                json.dumps(fixture.manifest), encoding="utf-8"
+            )
+            unrelated = fixture.root / "unrelated-working-directory"
+            unrelated.mkdir()
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "utf8",
+                    str(UPDATER),
+                    "diff",
+                    "--skills-root",
+                    str(fixture.skills_root),
+                    "--staged-root",
+                    str(fixture.staged_root),
+                    "--manifest",
+                    str(manifest_path),
+                    "--state-root",
+                    str(fixture.state_root),
+                    "--json",
+                ],
+                cwd=unrelated,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "clean")
+            self.assertIn("incoming/", payload["diff"])
+
+    def test_cli_apply_reexecutes_the_private_worker_for_a_successful_update(self):
+        with self.fixture() as fixture:
+            manifest_path = fixture.root / "cached-manifest.json"
+            manifest_path.write_text(
+                json.dumps(fixture.manifest), encoding="utf-8"
+            )
+            unrelated = fixture.root / "unrelated-working-directory"
+            unrelated.mkdir()
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "utf8",
+                    str(UPDATER),
+                    "apply",
+                    "--skills-root",
+                    str(fixture.skills_root),
+                    "--staged-root",
+                    str(fixture.staged_root),
+                    "--manifest",
+                    str(manifest_path),
+                    "--state-root",
+                    str(fixture.state_root),
+                    "--allow-local-changes",
+                    "--json",
+                ],
+                cwd=unrelated,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "updated")
+            self.assertEqual(read_bundle_versions(fixture.skills_root), {"1.1.0"})
+            self.assertTrue((fixture.state_root / "worker" / UPDATER.name).is_file())
 
     def test_two_simultaneous_applies_yield_one_updated_and_one_busy(self):
         with self.fixture() as fixture:

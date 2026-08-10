@@ -656,6 +656,41 @@ def _remove_tree(path: Path) -> None:
         shutil.rmtree(path)
 
 
+def _paths_overlap(first: Path, second: Path) -> bool:
+    return (
+        first == second
+        or first.is_relative_to(second)
+        or second.is_relative_to(first)
+    )
+
+
+def _validate_transaction_path_separation(
+    skills_root: Path,
+    staged_root: Path,
+    state_root: Path,
+) -> None:
+    resolved_skills = skills_root.resolve(strict=False)
+    resolved_staged = staged_root.resolve(strict=False)
+    resolved_state = state_root.resolve(strict=False)
+    installed_roots = [
+        (skill_name, (skills_root / skill_name).resolve(strict=False))
+        for skill_name in SKILLS
+    ]
+    protected_roots = [("Skills root", resolved_skills), *installed_roots]
+
+    if _paths_overlap(resolved_state, resolved_staged):
+        raise ArchiveError("state and staging roots must not overlap")
+    for candidate_label, candidate in (
+        ("state root", resolved_state),
+        ("staging root", resolved_staged),
+    ):
+        for protected_label, protected in protected_roots:
+            if _paths_overlap(candidate, protected):
+                raise ArchiveError(
+                    f"{candidate_label} must not overlap {protected_label}"
+                )
+
+
 def detect_installation_mode(
     skills_root: Path, skill_names: Sequence[str]
 ) -> str:
@@ -761,16 +796,6 @@ def _apply_source_transaction_locked(
     detect_installation_mode(skills_root, SKILLS)
     if staged_root.is_symlink() or not staged_root.is_dir():
         raise ArchiveError("staged bundle root is missing or unsafe")
-    skills_resolved = skills_root.resolve()
-    staged_resolved = staged_root.resolve()
-    if skills_resolved == staged_resolved:
-        raise ArchiveError("staging and installation roots must differ")
-    if (
-        staged_resolved == skills_resolved
-        or staged_resolved.is_relative_to(skills_resolved)
-        or skills_resolved.is_relative_to(staged_resolved)
-    ):
-        raise ArchiveError("staging and installation roots must not overlap")
     if os.stat(skills_root).st_dev != os.stat(staged_root).st_dev:
         raise ArchiveError("staging must be on the same filesystem as Skills")
 
@@ -872,6 +897,11 @@ def apply_source_transaction(
     staged_root = Path(staged_root)
     state_root = Path(state_root)
     try:
+        _validate_transaction_path_separation(
+            skills_root,
+            staged_root,
+            state_root,
+        )
         if state_root.is_symlink():
             raise ArchiveError("state root is a symlink")
         state_root.mkdir(parents=True, exist_ok=True)
@@ -1401,6 +1431,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "apply":
             skills_root, staged_root, manifest_path, state_root = _cli_paths(args)
+            _validate_transaction_path_separation(
+                skills_root,
+                staged_root,
+                state_root,
+            )
             manifest = _load_manifest_path(manifest_path, state_root)
             detect_installation_mode(skills_root, SKILLS)
             report = inspect_installation(skills_root, manifest)
