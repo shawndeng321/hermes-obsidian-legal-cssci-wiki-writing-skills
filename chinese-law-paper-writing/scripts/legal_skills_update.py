@@ -238,7 +238,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def _zip_member_path(info: zipfile.ZipInfo) -> tuple[PurePosixPath, bool]:
-    name = info.filename
+    name = getattr(info, "orig_filename", info.filename)
     if not isinstance(name, str) or not name or "\\" in name or "\0" in name:
         raise ArchiveError(f"unsafe archive member path: {name!r}")
     if name.startswith("/"):
@@ -313,7 +313,6 @@ def _validate_archive_directory(
     entries: list[tuple[zipfile.ZipInfo, PurePosixPath, bool]] = []
     seen: dict[str, str] = {}
     files_by_path: dict[PurePosixPath, zipfile.ZipInfo] = {}
-    directory_paths: set[PurePosixPath] = set()
     for info in infos:
         if info.file_size < 0 or info.compress_size < 0:
             raise ArchiveError(f"invalid archive member size: {info.filename}")
@@ -326,9 +325,7 @@ def _validate_archive_directory(
             )
         seen[folded] = normalized
         entries.append((info, path, is_directory))
-        if is_directory:
-            directory_paths.add(path)
-        else:
+        if not is_directory:
             files_by_path[path] = info
 
     folded_files = {path.as_posix().casefold() for path in files_by_path}
@@ -339,55 +336,44 @@ def _validate_archive_directory(
             if parent.as_posix().casefold() in folded_files:
                 raise ArchiveError(f"archive file is also a parent path: {parent}")
 
-    releases = [path for path in files_by_path if path.name == "bundle-release.json"]
-    if len(releases) != 1 or len(releases[0].parts) not in {1, 2}:
+    top_levels = {path.parts[0] for _, path, _ in entries}
+    if len(top_levels) != 1:
+        raise ArchiveError("archive must have one common top directory")
+    prefix = (next(iter(top_levels)),)
+    release_path = PurePosixPath(*prefix, "bundle-release.json")
+    if release_path not in files_by_path:
         raise ArchiveError("archive must contain one bundle-release.json at its root")
-    release_path = releases[0]
-    prefix = release_path.parts[:-1]
 
-    actual_files: dict[str, zipfile.ZipInfo] = {}
+    managed_files: dict[str, zipfile.ZipInfo] = {}
     for path, info in files_by_path.items():
-        if prefix and path.parts[: len(prefix)] != prefix:
+        if path.parts[: len(prefix)] != prefix:
             raise ArchiveError("archive contains files outside the bundle root")
-        relative_parts = path.parts[len(prefix) :]
-        if not relative_parts:
-            raise ArchiveError("archive contains an invalid bundle-root entry")
-        relative = PurePosixPath(*relative_parts).as_posix()
-        actual_files[relative] = info
+        relative = PurePosixPath(*path.parts[len(prefix) :]).as_posix()
+        if relative.split("/", 1)[0] in SKILLS:
+            managed_files[relative] = info
 
-    expected_files = {"bundle-release.json", *manifest_files}
-    missing = sorted(expected_files - set(actual_files))
-    extra = sorted(set(actual_files) - expected_files)
+    missing = sorted(set(manifest_files) - set(managed_files))
+    extra = sorted(set(managed_files) - set(manifest_files))
     if missing or extra:
         raise ArchiveError(f"archive file coverage mismatch; missing={missing}, extra={extra}")
 
-    allowed_directories: set[str] = set()
-    for relative in expected_files:
-        path = PurePosixPath(relative)
-        allowed_directories.update(
-            parent.as_posix()
-            for parent in path.parents
-            if parent != PurePosixPath(".")
-        )
-    for path in directory_paths:
-        if prefix and path.parts == prefix:
-            continue
-        if prefix and path.parts[: len(prefix)] != prefix:
-            raise ArchiveError("archive contains directories outside the bundle root")
-        relative = PurePosixPath(*path.parts[len(prefix) :]).as_posix()
-        if relative not in allowed_directories:
-            raise ArchiveError(f"archive contains an unexpected directory: {relative}")
-
     release_bytes = _read_zip_member(
-        bundle, actual_files["bundle-release.json"], maximum=MAX_MANIFEST_BYTES
+        bundle, files_by_path[release_path], maximum=MAX_MANIFEST_BYTES
     )
     release = _load_json_object(release_bytes, label="archive bundle-release.json")
     _verify_release_manifest(release, checked)
     for relative, expected_digest in manifest_files.items():
-        actual_digest = _hash_zip_member(bundle, actual_files[relative])
+        actual_digest = _hash_zip_member(bundle, managed_files[relative])
         if actual_digest != expected_digest:
             raise ArchiveError(f"archive file hash mismatch: {relative}")
-    return prefix, entries
+    selected_entries = [
+        (files_by_path[release_path], release_path, False)
+    ]
+    selected_entries.extend(
+        (managed_files[relative], PurePosixPath(*prefix, relative), False)
+        for relative in manifest_files
+    )
+    return prefix, selected_entries
 
 
 def safe_extract_bundle(archive: Path, destination: Path, manifest: dict) -> Path:

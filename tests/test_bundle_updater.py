@@ -102,6 +102,11 @@ def write_zip(
                 info.create_system = 3
                 info.external_attr = (stat.S_IFLNK | 0o777) << 16
                 bundle.writestr(info, content)
+            elif "\\" in name:
+                info = zipfile.ZipInfo(name.replace("\\", "/"))
+                info.filename = name
+                info.orig_filename = name
+                bundle.writestr(info, content)
             else:
                 bundle.writestr(name, content)
     archive.write_bytes(memory.getvalue())
@@ -490,6 +495,30 @@ class ArchiveSafetyTests(unittest.TestCase):
             )
             self.module.verify_staged_bundle(bundle_root, self.manifest)
 
+    def test_accepts_full_repository_archive_but_extracts_only_managed_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            members = bundle_members(self.manifest, self.files)
+            members.update(
+                {
+                    "repository-root/README.md": b"repository readme\n",
+                    "repository-root/docs/design.md": b"design\n",
+                    "repository-root/tests/test_release.py": b"def test_release(): pass\n",
+                    "repository-root/tools/prepare_bundle_release.py": b"print('tool')\n",
+                }
+            )
+            archive = write_zip(root / "main.zip", members)
+
+            bundle_root = self.module.safe_extract_bundle(
+                archive, root / "staging", self.manifest
+            )
+
+            self.module.verify_staged_bundle(bundle_root, self.manifest)
+            self.assertFalse((bundle_root / "README.md").exists())
+            self.assertFalse((bundle_root / "docs").exists())
+            self.assertFalse((bundle_root / "tests").exists())
+            self.assertFalse((bundle_root / "tools").exists())
+
     def test_rejects_traversal_absolute_drive_and_backslash_paths_before_writing(self):
         hostile_members = (
             "../escape.txt",
@@ -571,7 +600,7 @@ class ArchiveSafetyTests(unittest.TestCase):
         missing.pop("repository-root/legal-research-wiki/SKILL.md")
         cases.append(("missing", missing))
         extra = bundle_members(self.manifest, self.files)
-        extra["repository-root/unlisted.txt"] = b"extra"
+        extra["repository-root/legal-research-wiki/unlisted.txt"] = b"extra"
         cases.append(("extra", extra))
         mismatched = bundle_members(self.manifest, self.files)
         mismatched["repository-root/legal-wiki-audit-repair/SKILL.md"] = b"tampered"
