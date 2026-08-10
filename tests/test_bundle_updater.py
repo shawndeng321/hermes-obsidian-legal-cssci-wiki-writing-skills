@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import zipfile
 from contextlib import contextmanager
@@ -186,6 +187,55 @@ def write_staged_bundle(
         path = bundle_root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
+
+
+def make_transaction_bundle(version: str = "1.1.0") -> tuple[dict, dict[str, bytes]]:
+    manifest = make_manifest(version)
+    files: dict[str, bytes] = {}
+    for skill_name in SKILLS:
+        skill_files = {
+            "SKILL.md": f"incoming {skill_name}\n".encode(),
+            "agents/openai.yaml": f"incoming agent {skill_name}\n".encode(),
+        }
+        lock = {
+            "schema_version": 1,
+            "bundle_id": "hermes-legal-research-skills",
+            "bundle_version": version,
+            "skill_name": skill_name,
+            "skill_version": manifest["skills"][skill_name],
+            "files": {
+                relative: sha256_bytes(content)
+                for relative, content in skill_files.items()
+            },
+        }
+        skill_files["bundle-lock.json"] = (
+            json.dumps(lock, ensure_ascii=False, sort_keys=True) + "\n"
+        ).encode("utf-8")
+        for relative, content in skill_files.items():
+            files[f"{skill_name}/{relative}"] = content
+    manifest["files"] = {
+        relative: sha256_bytes(content) for relative, content in files.items()
+    }
+    return manifest, files
+
+
+def snapshot_tree(root: Path) -> dict[str, bytes]:
+    if not root.exists():
+        return {}
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
+def read_bundle_versions(skills_root: Path) -> set[str]:
+    return {
+        json.loads((skills_root / name / "bundle-lock.json").read_text(encoding="utf-8"))[
+            "bundle_version"
+        ]
+        for name in SKILLS
+    }
 
 
 @contextmanager
@@ -824,6 +874,241 @@ class InstallationInspectionTests(unittest.TestCase):
                 self.assertIn(sha256_bytes(new_content), result)
             self.assertNotIn("a" * 100, result)
             self.assertNotIn("b" * 100, result)
+
+
+class SourceTransactionTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_module(UPDATER, f"legal_skills_transaction_{self._testMethodName}")
+
+    @contextmanager
+    def fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skills_root = root / "skills"
+            staged_root = root / "staged"
+            state_root = root / "state"
+            skills_root.mkdir()
+            state_root.mkdir()
+            manifest, files = make_transaction_bundle()
+            write_installation(skills_root)
+            write_staged_bundle(staged_root, manifest, files)
+            yield SimpleNamespace(
+                root=root,
+                skills_root=skills_root,
+                staged_root=staged_root,
+                state_root=state_root,
+                manifest=manifest,
+            )
+
+    def test_detects_a_normal_source_copy_installation(self):
+        with self.fixture() as fixture:
+            self.assertEqual(
+                self.module.detect_installation_mode(fixture.skills_root, SKILLS),
+                "source-copy",
+            )
+
+    def test_applies_three_skills_and_keeps_timestamped_backup(self):
+        with self.fixture() as fixture:
+            result = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+            )
+
+            self.assertEqual(result["status"], "updated")
+            self.assertEqual(read_bundle_versions(fixture.skills_root), {"1.1.0"})
+            backup = Path(result["backup_path"])
+            self.assertTrue(backup.is_dir())
+            self.assertTrue((backup / "transaction.json").is_file())
+            self.assertEqual(
+                sorted(path.name for path in backup.iterdir() if path.is_dir()),
+                sorted(SKILLS),
+            )
+            self.assertTrue((fixture.state_root / "worker" / "legal_skills_update.py").is_file())
+
+    def test_fault_after_second_skill_restores_all_old_directories(self):
+        with self.fixture() as fixture:
+            before = snapshot_tree(fixture.skills_root)
+
+            def fail_after_second(skill_name):
+                if skill_name == SKILLS[1]:
+                    raise RuntimeError("simulated second-skill failure")
+
+            result = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+                fault_hook=fail_after_second,
+            )
+
+            self.assertEqual(result["status"], "rolled_back")
+            self.assertEqual(snapshot_tree(fixture.skills_root), before)
+
+    def test_local_changes_need_an_independent_confirmation(self):
+        with self.fixture() as fixture:
+            local_file = fixture.skills_root / SKILLS[0] / "SKILL.md"
+            local_file.write_text("local edit\n", encoding="utf-8")
+            before = snapshot_tree(fixture.skills_root)
+
+            blocked = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+            )
+            self.assertEqual(blocked["status"], "confirmation_required")
+            self.assertEqual(snapshot_tree(fixture.skills_root), before)
+
+            allowed = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+                allow_local_changes=True,
+            )
+            self.assertEqual(allowed["status"], "updated")
+
+    def test_missing_skill_needs_an_independent_install_confirmation(self):
+        with self.fixture() as fixture:
+            shutil.rmtree(fixture.skills_root / SKILLS[1])
+
+            blocked = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+                allow_local_changes=True,
+            )
+            self.assertEqual(blocked["status"], "confirmation_required")
+            self.assertEqual(blocked["report"]["missing_skills"], [SKILLS[1]])
+            self.assertFalse((fixture.skills_root / SKILLS[1]).exists())
+
+            allowed = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+                install_missing=True,
+            )
+            self.assertEqual(allowed["status"], "updated")
+
+    def test_local_and_missing_flags_are_not_inferred_from_each_other(self):
+        with self.fixture() as fixture:
+            shutil.rmtree(fixture.skills_root / SKILLS[1])
+            (fixture.skills_root / SKILLS[0] / "SKILL.md").write_text(
+                "local edit\n", encoding="utf-8"
+            )
+
+            local_only = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+                allow_local_changes=True,
+            )
+            self.assertEqual(local_only["status"], "confirmation_required")
+
+            missing_only = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+                install_missing=True,
+            )
+            self.assertEqual(missing_only["status"], "confirmation_required")
+
+    def test_rejects_git_worktrees_and_symlink_skill_directories(self):
+        with self.fixture() as fixture:
+            (fixture.skills_root / SKILLS[0] / ".git").write_text(
+                "gitdir: ../.git/worktrees/paper\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(self.module.ArchiveError, "Git"):
+                self.module.detect_installation_mode(fixture.skills_root, SKILLS)
+
+        with self.fixture() as fixture:
+            target = fixture.skills_root / SKILLS[0]
+            replacement = fixture.root / "paper-link-target"
+            target.rename(replacement)
+            try:
+                target.symlink_to(replacement, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"directory symlinks unavailable: {exc}")
+            with self.assertRaisesRegex(self.module.ArchiveError, "symlink"):
+                self.module.detect_installation_mode(fixture.skills_root, SKILLS)
+
+    def test_two_simultaneous_applies_yield_one_updated_and_one_busy(self):
+        with self.fixture() as fixture:
+            entered = threading.Event()
+            release = threading.Event()
+            results = []
+
+            def hold_after_first(skill_name):
+                if skill_name == SKILLS[0]:
+                    entered.set()
+                    self.assertTrue(release.wait(5))
+
+            first = threading.Thread(
+                target=lambda: results.append(
+                    self.module.apply_source_transaction(
+                        fixture.skills_root,
+                        fixture.staged_root,
+                        fixture.manifest,
+                        fixture.state_root,
+                        fault_hook=hold_after_first,
+                    )
+                )
+            )
+            first.start()
+            self.assertTrue(entered.wait(5))
+            second = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+            )
+            release.set()
+            first.join(5)
+
+            self.assertEqual(second["status"], "busy")
+            self.assertEqual([result["status"] for result in results], ["updated"])
+
+    def test_cli_uses_explicit_paths_and_requires_confirmation_before_write(self):
+        with self.fixture() as fixture:
+            command = [
+                sys.executable,
+                "-X",
+                "utf8",
+                str(UPDATER),
+                "apply",
+                "--skills-root",
+                str(fixture.skills_root),
+                "--staged-root",
+                str(fixture.staged_root),
+                "--manifest",
+                str(fixture.root / "cached-manifest.json"),
+                "--state-root",
+                str(fixture.state_root),
+                "--json",
+            ]
+            Path(fixture.root / "cached-manifest.json").write_text(
+                json.dumps(fixture.manifest), encoding="utf-8"
+            )
+            before = snapshot_tree(fixture.skills_root)
+            result = subprocess.run(
+                command,
+                cwd=fixture.root / "unrelated-working-directory",
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            ) if (fixture.root / "unrelated-working-directory").mkdir() is None else None
+            self.assertIsNotNone(result)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["status"], "confirmation_required")
+            self.assertEqual(snapshot_tree(fixture.skills_root), before)
 
 
 class UpdateCheckTests(unittest.TestCase):

@@ -7,12 +7,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import time
 import zipfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import ContextManager
@@ -647,6 +649,250 @@ def format_incoming_diff(
     return "\n\n".join(sections)
 
 
+def _remove_tree(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def detect_installation_mode(
+    skills_root: Path, skill_names: Sequence[str]
+) -> str:
+    """Identify a normal copied-source installation without following links."""
+    skills_root = Path(skills_root)
+    if skills_root.is_symlink():
+        raise ArchiveError("Skills root is a symlink")
+    if not skills_root.is_dir():
+        raise ArchiveError(f"Skills root is not a directory: {skills_root}")
+    if (skills_root / ".git").exists():
+        raise ArchiveError("Git worktree installations are not supported")
+
+    seen: set[str] = set()
+    for raw_name in skill_names:
+        if not isinstance(raw_name, str) or raw_name in seen:
+            raise ArchiveError("invalid or duplicate Skill name")
+        seen.add(raw_name)
+        relative = _safe_relative_path(raw_name, label="Skill name")
+        if len(relative.parts) != 1:
+            raise ArchiveError(f"invalid Skill name: {raw_name}")
+        skill_root = skills_root / raw_name
+        if skill_root.is_symlink():
+            raise ArchiveError(f"Skill directory is a symlink: {raw_name}")
+        if not skill_root.exists():
+            continue
+        if not skill_root.is_dir():
+            raise ArchiveError(f"Skill path is not a directory: {raw_name}")
+        if (skill_root / ".git").exists():
+            raise ArchiveError(f"Git worktree Skill is not supported: {raw_name}")
+    return "source-copy"
+
+
+def _copy_worker_script(state_root: Path) -> Path:
+    worker_root = state_root / "worker"
+    worker_root.mkdir(parents=True, exist_ok=True)
+    worker_path = worker_root / Path(__file__).name
+    if worker_path.is_symlink():
+        raise ArchiveError("worker path is a symlink")
+    if worker_path.resolve() != Path(__file__).resolve():
+        shutil.copy2(Path(__file__), worker_path)
+    return worker_path
+
+
+def _verify_installed_bundle(skills_root: Path, manifest: dict) -> None:
+    checked, manifest_files = _checked_manifest_files(manifest)
+    for skill_name in SKILLS:
+        skill_root = skills_root / skill_name
+        if skill_root.is_symlink() or not skill_root.is_dir():
+            raise ArchiveError(f"installed Skill is missing or unsafe: {skill_name}")
+        lock_path = skill_root / "bundle-lock.json"
+        try:
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ArchiveError(f"installed lock is invalid: {skill_name}") from exc
+        expected_lock = {
+            path[len(skill_name) + 1 :]: digest
+            for path, digest in manifest_files.items()
+            if path.startswith(f"{skill_name}/")
+            and path != f"{skill_name}/bundle-lock.json"
+        }
+        if _valid_local_lock(lock, skill_name) != expected_lock:
+            raise ArchiveError(f"installed lock contents are invalid: {skill_name}")
+        if lock.get("bundle_version") != checked["bundle_version"]:
+            raise ArchiveError(f"installed Bundle version is invalid: {skill_name}")
+        if lock.get("skill_version") != checked["skills"][skill_name]:
+            raise ArchiveError(f"installed Skill version is invalid: {skill_name}")
+
+    for relative, expected_digest in manifest_files.items():
+        path = skills_root.joinpath(*PurePosixPath(relative).parts)
+        if path.is_symlink() or not path.is_file() or _sha256_file(path) != expected_digest:
+            raise ArchiveError(f"installed file hash mismatch: {relative}")
+
+
+def _write_transaction(path: Path, transaction: dict) -> None:
+    save_state(path, transaction)
+
+
+def _rollback_source_transaction(
+    skills_root: Path,
+    backup_root: Path,
+    installed_names: set[str],
+) -> None:
+    for skill_name in installed_names:
+        _remove_tree(skills_root / skill_name)
+    for skill_name in SKILLS:
+        backup_skill = backup_root / skill_name
+        if backup_skill.is_dir():
+            target = skills_root / skill_name
+            _remove_tree(target)
+            shutil.copytree(backup_skill, target, symlinks=True)
+
+
+def _apply_source_transaction_locked(
+    skills_root: Path,
+    staged_root: Path,
+    manifest: dict,
+    state_root: Path,
+    *,
+    allow_local_changes: bool,
+    install_missing: bool,
+    fault_hook,
+) -> dict:
+    detect_installation_mode(skills_root, SKILLS)
+    if staged_root.is_symlink() or not staged_root.is_dir():
+        raise ArchiveError("staged bundle root is missing or unsafe")
+    skills_resolved = skills_root.resolve()
+    staged_resolved = staged_root.resolve()
+    if skills_resolved == staged_resolved:
+        raise ArchiveError("staging and installation roots must differ")
+    if (
+        staged_resolved == skills_resolved
+        or staged_resolved.is_relative_to(skills_resolved)
+        or skills_resolved.is_relative_to(staged_resolved)
+    ):
+        raise ArchiveError("staging and installation roots must not overlap")
+    if os.stat(skills_root).st_dev != os.stat(staged_root).st_dev:
+        raise ArchiveError("staging must be on the same filesystem as Skills")
+
+    checked, _ = _checked_manifest_files(manifest)
+    verify_staged_bundle(staged_root, checked)
+    report = inspect_installation(skills_root, checked)
+    has_local_changes = any(
+        report[key] for key in ("modified", "deleted", "added")
+    )
+    has_missing_skills = bool(report["missing_skills"])
+    if (has_local_changes and not allow_local_changes) or (
+        has_missing_skills and not install_missing
+    ):
+        return {
+            "status": "confirmation_required",
+            "fatal": False,
+            "report": report,
+            "modification_report": report,
+        }
+
+    worker_path = _copy_worker_script(state_root)
+    backup_root = state_root / "backups" / (
+        time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f"-{time.time_ns()}"
+    )
+    backup_root.mkdir(parents=True, exist_ok=False)
+    transaction_path = backup_root / "transaction.json"
+    transaction = {
+        "status": "started",
+        "bundle_version": checked["bundle_version"],
+        "skills": list(SKILLS),
+        "skills_root": str(skills_root.resolve()),
+        "staged_root": str(staged_root.resolve()),
+        "worker": str(worker_path),
+    }
+    for skill_name in SKILLS:
+        source = skills_root / skill_name
+        if source.is_dir() and not source.is_symlink():
+            shutil.copytree(source, backup_root / skill_name, symlinks=True)
+    _write_transaction(transaction_path, transaction)
+
+    installed_names: set[str] = set()
+    try:
+        for skill_name in SKILLS:
+            target = skills_root / skill_name
+            staged_skill = staged_root / skill_name
+            _remove_tree(target)
+            os.replace(staged_skill, target)
+            installed_names.add(skill_name)
+            if fault_hook is not None:
+                fault_hook(skill_name)
+        _verify_installed_bundle(skills_root, checked)
+    except Exception as exc:
+        try:
+            _rollback_source_transaction(skills_root, backup_root, installed_names)
+            transaction["status"] = "rolled_back"
+            transaction["error"] = str(exc)
+            _write_transaction(transaction_path, transaction)
+            return {
+                "status": "rolled_back",
+                "fatal": False,
+                "backup_path": str(backup_root),
+                "message": str(exc),
+                "report": report,
+            }
+        except Exception as rollback_error:
+            transaction["status"] = "rollback_failed"
+            transaction["error"] = str(exc)
+            transaction["rollback_error"] = str(rollback_error)
+            _write_transaction(transaction_path, transaction)
+            return {
+                "status": "rollback_failed",
+                "fatal": True,
+                "backup_path": str(backup_root),
+                "message": str(rollback_error),
+            }
+
+    transaction["status"] = "updated"
+    _write_transaction(transaction_path, transaction)
+    return {
+        "status": "updated",
+        "fatal": False,
+        "bundle_version": checked["bundle_version"],
+        "backup_path": str(backup_root),
+        "report": report,
+    }
+
+
+def apply_source_transaction(
+    skills_root: Path,
+    staged_root: Path,
+    manifest: dict,
+    state_root: Path,
+    *,
+    allow_local_changes: bool = False,
+    install_missing: bool = False,
+    fault_hook=None,
+) -> dict:
+    skills_root = Path(skills_root)
+    staged_root = Path(staged_root)
+    state_root = Path(state_root)
+    try:
+        if state_root.is_symlink():
+            raise ArchiveError("state root is a symlink")
+        state_root.mkdir(parents=True, exist_ok=True)
+        with operation_lock(state_root / LOCK_FILE_NAME):
+            return _apply_source_transaction_locked(
+                skills_root,
+                staged_root,
+                manifest,
+                state_root,
+                allow_local_changes=allow_local_changes,
+                install_missing=install_missing,
+                fault_hook=fault_hook,
+            )
+    except LockBusyError:
+        return {"status": "busy", "fatal": False}
+    except ArchiveError as exc:
+        return {"status": "rejected", "fatal": False, "message": str(exc)}
+    except (OSError, ValueError) as exc:
+        return {"status": "failed", "fatal": True, "message": str(exc)}
+
+
 def get_state_root(
     env: Mapping[str, str] | None = None,
     platform_name: str | None = None,
@@ -992,6 +1238,106 @@ def details(skill_dir: Path) -> dict:
     }
 
 
+def _load_manifest_path(manifest_path: Path, state_root: Path) -> dict:
+    path = Path(manifest_path)
+    if not path.exists():
+        state = load_state(state_root / STATE_FILE_NAME)
+        cached = state.get("cached_manifest")
+        if isinstance(cached, dict):
+            return validate_manifest(cached)
+        raise ValueError(f"cached manifest does not exist: {path}")
+    try:
+        return validate_manifest(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValueError(f"invalid cached manifest: {path}") from exc
+
+
+def _cli_paths(args) -> tuple[Path, Path, Path, Path]:
+    state_root = Path(args.state_root) if args.state_root else get_state_root()
+    skills_root = (
+        Path(args.skills_root) if args.skills_root else _skill_dir().parent
+    )
+    if not args.staged_root:
+        raise ValueError("--staged-root is required")
+    staged_root = Path(args.staged_root)
+    manifest_path = (
+        Path(args.manifest_path)
+        if args.manifest_path
+        else state_root / STATE_FILE_NAME
+    )
+    return skills_root, staged_root, manifest_path, state_root
+
+
+def _diff_result(
+    skills_root: Path,
+    staged_root: Path,
+    manifest: dict,
+) -> dict:
+    report = inspect_installation(skills_root, manifest)
+    changed = set(manifest["files"])
+    changed.update(report["modified"])
+    changed.update(report["deleted"])
+    changed.update(report["added"])
+    return {
+        "status": report["status"],
+        "fatal": False,
+        "report": report,
+        "modification_report": report,
+        "diff": format_incoming_diff(skills_root, staged_root, sorted(changed)),
+    }
+
+
+def _run_source_worker(
+    worker_path: Path,
+    skills_root: Path,
+    staged_root: Path,
+    manifest_path: Path,
+    state_root: Path,
+    *,
+    allow_local_changes: bool,
+    install_missing: bool,
+) -> dict:
+    command = [
+        sys.executable,
+        "-X",
+        "utf8",
+        str(worker_path),
+        "worker-apply",
+        "--skills-root",
+        str(skills_root.resolve()),
+        "--staged-root",
+        str(staged_root.resolve()),
+        "--manifest",
+        str(manifest_path.resolve()),
+        "--state-root",
+        str(state_root.resolve()),
+        "--json",
+    ]
+    if allow_local_changes:
+        command.append("--allow-local-changes")
+    if install_missing:
+        command.append("--install-missing")
+    completed = subprocess.run(
+        command,
+        cwd=str(state_root.resolve()),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    output = completed.stdout.strip().splitlines()
+    if output:
+        try:
+            return json.loads(output[-1])
+        except json.JSONDecodeError:
+            pass
+    return {
+        "status": "failed",
+        "fatal": True,
+        "message": completed.stderr.strip() or "source worker returned invalid output",
+    }
+
+
 def _skill_dir() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -1012,6 +1358,28 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ignore_parser.add_argument("--json", action="store_true")
     details_parser = subparsers.add_parser("details")
     details_parser.add_argument("--json", action="store_true")
+
+    def add_transaction_paths(command):
+        command.add_argument("--skills-root", type=Path)
+        command.add_argument("--staged-root", "--staged", dest="staged_root", type=Path)
+        command.add_argument(
+            "--manifest", "--manifest-path", dest="manifest_path", type=Path
+        )
+        command.add_argument("--state-root", type=Path)
+
+    diff = subparsers.add_parser("diff")
+    add_transaction_paths(diff)
+    diff.add_argument("--json", action="store_true")
+    apply = subparsers.add_parser("apply")
+    add_transaction_paths(apply)
+    apply.add_argument("--allow-local-changes", action="store_true")
+    apply.add_argument("--install-missing", action="store_true")
+    apply.add_argument("--json", action="store_true")
+    worker = subparsers.add_parser("worker-apply", help=argparse.SUPPRESS)
+    add_transaction_paths(worker)
+    worker.add_argument("--allow-local-changes", action="store_true")
+    worker.add_argument("--install-missing", action="store_true")
+    worker.add_argument("--json", action="store_true")
     return parser
 
 
@@ -1024,9 +1392,54 @@ def main(argv: list[str] | None = None) -> int:
             result = snooze(_skill_dir(), args.hours)
         elif args.command == "ignore":
             result = ignore(_skill_dir(), args.version)
+        elif args.command == "diff":
+            skills_root, staged_root, manifest_path, state_root = _cli_paths(args)
+            result = _diff_result(
+                skills_root,
+                staged_root,
+                _load_manifest_path(manifest_path, state_root),
+            )
+        elif args.command == "apply":
+            skills_root, staged_root, manifest_path, state_root = _cli_paths(args)
+            manifest = _load_manifest_path(manifest_path, state_root)
+            detect_installation_mode(skills_root, SKILLS)
+            report = inspect_installation(skills_root, manifest)
+            if (
+                not args.allow_local_changes
+                or (report["missing_skills"] and not args.install_missing)
+            ):
+                result = {
+                    "status": "confirmation_required",
+                    "fatal": False,
+                    "report": report,
+                    "modification_report": report,
+                }
+            else:
+                worker_path = _copy_worker_script(state_root)
+                result = _run_source_worker(
+                    worker_path,
+                    skills_root,
+                    staged_root,
+                    manifest_path,
+                    state_root,
+                    allow_local_changes=args.allow_local_changes,
+                    install_missing=args.install_missing,
+                )
+        elif args.command == "worker-apply":
+            skills_root, staged_root, manifest_path, state_root = _cli_paths(args)
+            result = apply_source_transaction(
+                skills_root,
+                staged_root,
+                _load_manifest_path(manifest_path, state_root),
+                state_root,
+                allow_local_changes=args.allow_local_changes,
+                install_missing=args.install_missing,
+            )
         else:
             result = details(_skill_dir())
-    except (LockBusyError, ValueError) as exc:
+    except ArchiveError as exc:
+        result = {"status": "rejected", "fatal": False, "message": str(exc)}
+    except (LockBusyError, OSError, ValueError) as exc:
         result = {"status": "invalid_input", "fatal": False, "message": str(exc)}
     if args.json:
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
