@@ -130,10 +130,12 @@ def validate_manifest(data: object) -> dict:
     if not isinstance(data["compatibility"], dict):
         raise ValueError("manifest compatibility must be an object")
 
-    parsed_url = urlparse(data["archive_url"])
+    archive_url = data["archive_url"]
+    if not isinstance(archive_url, str):
+        raise ValueError("manifest archive_url is not an approved HTTPS URL")
+    parsed_url = urlparse(archive_url)
     if (
-        not isinstance(data["archive_url"], str)
-        or parsed_url.scheme != "https"
+        parsed_url.scheme != "https"
         or parsed_url.hostname not in ALLOWED_DOWNLOAD_HOSTS
     ):
         raise ValueError("manifest archive_url is not an approved HTTPS URL")
@@ -304,6 +306,26 @@ def _state_paths() -> tuple[Path, Path]:
     return root / STATE_FILE_NAME, root / LOCK_FILE_NAME
 
 
+def _record_nonfatal_attempt(
+    state_path: Path,
+    state: dict,
+    checked_at: float,
+    status: str,
+    current_version: str,
+    message: str,
+) -> dict:
+    state["last_network_check"] = checked_at
+    state["last_nonfatal_status"] = status
+    state["last_nonfatal_message"] = message
+    save_state(state_path, state)
+    return {
+        "status": status,
+        "fatal": False,
+        "current_version": current_version,
+        "message": message,
+    }
+
+
 def check_for_update(
     skill_dir: Path,
     *,
@@ -324,6 +346,22 @@ def check_for_update(
             state = load_state(state_path)
             cached_manifest = state.get("cached_manifest")
             last_check = state.get("last_network_check")
+            last_nonfatal_status = state.get("last_nonfatal_status")
+            failed_attempt_fresh = (
+                not force
+                and isinstance(last_check, (int, float))
+                and checked_at - last_check < CHECK_INTERVAL_SECONDS
+                and last_nonfatal_status in {"offline", "invalid_manifest"}
+            )
+            if failed_attempt_fresh:
+                result = {
+                    "status": last_nonfatal_status,
+                    "fatal": False,
+                    "current_version": current_version,
+                }
+                if isinstance(state.get("last_nonfatal_message"), str):
+                    result["message"] = state["last_nonfatal_message"]
+                return result
             cache_fresh = (
                 isinstance(last_check, (int, float))
                 and checked_at - last_check < CHECK_INTERVAL_SECONDS
@@ -353,40 +391,54 @@ def check_for_update(
             try:
                 fetched = fetcher(MANIFEST_URL, etag, NETWORK_TIMEOUT_SECONDS)
             except (OSError, URLError, HTTPError, TimeoutError) as exc:
-                return {
-                    "status": "offline",
-                    "fatal": False,
-                    "current_version": current_version,
-                    "message": str(exc),
-                }
+                return _record_nonfatal_attempt(
+                    state_path, state, checked_at, "offline", current_version, str(exc)
+                )
+            except ValueError as exc:
+                return _record_nonfatal_attempt(
+                    state_path,
+                    state,
+                    checked_at,
+                    "invalid_manifest",
+                    current_version,
+                    str(exc),
+                )
             if not isinstance(fetched, FetchResult):
-                return {
-                    "status": "invalid_manifest",
-                    "fatal": False,
-                    "current_version": current_version,
-                    "message": "manifest fetcher returned an invalid result",
-                }
-            if fetched.not_modified:
-                if not isinstance(cached_manifest, dict):
-                    return {
-                        "status": "invalid_manifest",
-                        "fatal": False,
-                        "current_version": current_version,
-                        "message": "server returned not-modified without a cached manifest",
-                    }
-                manifest = validate_manifest(cached_manifest)
-            elif fetched.manifest is None:
-                return {
-                    "status": "invalid_manifest",
-                    "fatal": False,
-                    "current_version": current_version,
-                    "message": "manifest response was empty",
-                }
-            else:
-                manifest = validate_manifest(fetched.manifest)
-
-            history = _aggregate_history(state.get("history"), cached_manifest, manifest)
+                message = "manifest fetcher returned an invalid result"
+                return _record_nonfatal_attempt(
+                    state_path,
+                    state,
+                    checked_at,
+                    "invalid_manifest",
+                    current_version,
+                    message,
+                )
+            try:
+                if fetched.not_modified:
+                    if not isinstance(cached_manifest, dict):
+                        raise ValueError(
+                            "server returned not-modified without a cached manifest"
+                        )
+                    manifest = validate_manifest(cached_manifest)
+                elif fetched.manifest is None:
+                    raise ValueError("manifest response was empty")
+                else:
+                    manifest = validate_manifest(fetched.manifest)
+                history = _aggregate_history(
+                    state.get("history"), cached_manifest, manifest
+                )
+            except ValueError as exc:
+                return _record_nonfatal_attempt(
+                    state_path,
+                    state,
+                    checked_at,
+                    "invalid_manifest",
+                    current_version,
+                    str(exc),
+                )
             state["last_network_check"] = checked_at
+            state.pop("last_nonfatal_status", None)
+            state.pop("last_nonfatal_message", None)
             state["cached_manifest"] = manifest
             state["history"] = history
             state["etag"] = fetched.etag or etag

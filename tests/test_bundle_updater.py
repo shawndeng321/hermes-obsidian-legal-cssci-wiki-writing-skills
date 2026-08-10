@@ -430,6 +430,76 @@ class UpdateCheckTests(unittest.TestCase):
         self.assertFalse(result["fatal"])
         self.assertNotEqual(result["status"], "up_to_date")
 
+    def test_offline_attempt_suppresses_another_automatic_fetch_for_six_hours(self):
+        module = load_module(UPDATER, "legal_skills_update_offline_cache")
+        calls = []
+
+        def offline_fetcher(*_):
+            calls.append("fetch")
+            raise OSError("offline")
+
+        with updater_fixture() as fixture:
+            first = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0,
+                fetcher=offline_fetcher,
+            )
+            second = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0 + 21_599,
+                fetcher=offline_fetcher,
+            )
+            self.assertEqual(first["status"], "offline")
+            self.assertEqual(second["status"], "offline")
+            self.assertEqual(calls, ["fetch"])
+            state = json.loads(fixture.state_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["last_network_check"], 1_000.0)
+            self.assertEqual(state["last_nonfatal_status"], "offline")
+
+    def test_invalid_manifest_suppresses_another_automatic_fetch_for_six_hours(self):
+        module = load_module(UPDATER, "legal_skills_update_invalid_cache")
+        calls = []
+
+        def invalid_fetcher(*_):
+            calls.append("fetch")
+            return module.FetchResult({"schema_version": 1}, '"bad"', False)
+
+        with updater_fixture() as fixture:
+            first = module.check_for_update(
+                fixture.skill_dir,
+                now=2_000.0,
+                fetcher=invalid_fetcher,
+            )
+            second = module.check_for_update(
+                fixture.skill_dir,
+                now=2_000.0 + 21_599,
+                fetcher=invalid_fetcher,
+            )
+            self.assertEqual(first["status"], "invalid_manifest")
+            self.assertEqual(second["status"], "invalid_manifest")
+            self.assertEqual(calls, ["fetch"])
+            state = json.loads(fixture.state_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["last_network_check"], 2_000.0)
+            self.assertEqual(state["last_nonfatal_status"], "invalid_manifest")
+
+    def test_non_string_archive_url_returns_nonfatal_invalid_manifest(self):
+        module = load_module(UPDATER, "legal_skills_update_non_string_url")
+        manifest = make_manifest("1.1.0")
+        manifest["archive_url"] = {"host": "github.com"}
+
+        with updater_fixture() as fixture:
+            try:
+                result = module.check_for_update(
+                    fixture.skill_dir,
+                    now=3_000.0,
+                    fetcher=lambda *_: module.FetchResult(manifest, '"bad"', False),
+                )
+            except (AttributeError, TypeError) as exc:
+                self.fail(f"check_for_update leaked archive_url type error: {exc}")
+
+        self.assertEqual(result["status"], "invalid_manifest")
+        self.assertFalse(result["fatal"])
+
     def test_save_state_replaces_a_complete_sibling_file_atomically(self):
         module = load_module(UPDATER, "legal_skills_update_atomic_state")
         with tempfile.TemporaryDirectory() as tmp:
