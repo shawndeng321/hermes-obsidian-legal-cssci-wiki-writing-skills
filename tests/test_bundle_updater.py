@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -50,7 +53,92 @@ def write_skill(root: Path, name: str, version: str) -> Path:
     return skill
 
 
+def prepare_temporary_repository(root: Path) -> None:
+    tool = root / "tools" / "prepare_bundle_release.py"
+    tool.parent.mkdir(parents=True)
+    shutil.copy2(PREPARE, tool)
+    for skill_name, version in zip(SKILLS, ("5.1.0", "4.1.0", "4.2.0")):
+        write_skill(root, skill_name, version)
+
+
+def run_prepare(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    tool = root / "tools" / "prepare_bundle_release.py"
+    return subprocess.run(
+        [sys.executable, "-X", "utf8", str(tool), *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+
+def write_release(root: Path) -> subprocess.CompletedProcess[str]:
+    return run_prepare(
+        root,
+        "--write",
+        "--bundle-version",
+        "1.0.0",
+        "--published-at",
+        "2026-08-10T00:00:00+08:00",
+        "--update-level",
+        "feature",
+        "--summary",
+        "增加按需更新检查、统一备份和回滚",
+        "--change",
+        "增加每6小时一次的按需更新检查",
+    )
+
+
 class ReleaseContractTests(unittest.TestCase):
+    def test_cli_write_and_check_succeeds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_temporary_repository(root)
+
+            written = write_release(root)
+
+            self.assertEqual(written.returncode, 0, written.stderr)
+            self.assertTrue((root / "bundle-release.json").is_file())
+            for skill_name in SKILLS:
+                self.assertTrue((root / skill_name / "bundle-lock.json").is_file())
+
+            checked = run_prepare(root, "--check")
+
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+            self.assertIn("Bundle 1.0.0 is consistent", checked.stdout)
+
+    def test_cli_check_rejects_tampered_lock_even_when_manifest_hash_matches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_temporary_repository(root)
+            written = write_release(root)
+            self.assertEqual(written.returncode, 0, written.stderr)
+
+            skill_name = SKILLS[0]
+            lock_path = root / skill_name / "bundle-lock.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["bundle_version"] = "9.9.9"
+            lock_path.write_text(
+                json.dumps(lock, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            manifest_path = root / "bundle-release.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"][f"{skill_name}/bundle-lock.json"] = hashlib.sha256(
+                lock_path.read_bytes()
+            ).hexdigest()
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            checked = run_prepare(root, "--check")
+
+            self.assertNotEqual(checked.returncode, 0)
+            self.assertIn("bundle-lock.json", checked.stderr)
+
     def test_collect_skill_files_is_stable_and_excludes_lock_and_cache(self):
         module = load_module(PREPARE, "prepare_bundle_release_collect")
         with tempfile.TemporaryDirectory() as tmp:

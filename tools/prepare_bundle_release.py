@@ -228,6 +228,27 @@ def _write_locks(root: Path, release: dict) -> None:
         _write_json(skill_dir / LOCK_NAME, lock)
 
 
+def _check_locks(root: Path, bundle_version: str) -> bool:
+    for skill_name in SKILLS:
+        skill_dir = root / skill_name
+        expected = build_lock(
+            skill_name,
+            read_skill_version(skill_dir),
+            bundle_version,
+            collect_skill_files(skill_dir),
+        )
+        lock_path = skill_dir / LOCK_NAME
+        try:
+            existing = _load_json(lock_path)
+        except ValueError as exc:
+            print(f"{skill_name}/{LOCK_NAME} is invalid: {exc}", file=sys.stderr)
+            return False
+        if existing != expected:
+            print(f"{skill_name}/{LOCK_NAME} differs from expected content", file=sys.stderr)
+            return False
+    return True
+
+
 def _resolve_release(root: Path, args: argparse.Namespace) -> dict:
     existing = _load_json(root / "bundle-release.json")
     if existing:
@@ -282,6 +303,8 @@ def _command_check(root: Path) -> int:
     release = _release_from_existing_manifest(existing)
     if "archive_url" in existing:
         release["archive_url"] = existing["archive_url"]
+    if not _check_locks(root, str(existing.get("bundle_version", ""))):
+        return 1
     expected = build_manifest(root, release)
     if expected != existing:
         print("bundle-release.json differs from expected content", file=sys.stderr)
