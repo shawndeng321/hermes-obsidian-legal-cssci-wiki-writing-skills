@@ -49,7 +49,7 @@
     "scripts/batch_extract_papers.py": "73fc76b1727ca76d0481273877ac8d79f0f2fef60129fab8654646c27bfd26a5",
     "scripts/check_wikilinks.py": "368e3bb609f3e29f810e9765a8214222c2db4a9afa9d9290d0d6a1a1cf0e992b",
     "scripts/clean_pdf_artifacts.py": "01dd03b0a9622bd6e9b1829983ffe0f427eee38481ac86e950336fad91744bc0",
-    "scripts/legal_skills_update.py": "73d7650e3a3ddd27ed7c4992c94ddf06e5c3b02f92c8edf0ea98d995a0d43b80",
+    "scripts/legal_skills_update.py": "d6b2c5d0d8f55a645104db6b1ef15e58038382abd0a948a5e1ef71a0d1da2b2c",
     "SKILL.md": "2e406ecc702d520a3e38fe2f85b1cb5ff8cad29ef0ecc6c71354b1b2c2df42cd"
   }
 }

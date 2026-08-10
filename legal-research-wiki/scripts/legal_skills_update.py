@@ -1193,6 +1193,7 @@ def _apply_hermes_transaction_locked(
             report["modified"]
             or report["deleted"]
             or report["added"]
+            or report["symlinked"]
             or report["unknown_integrity"]
         )
         and not allow_local_changes
@@ -1247,6 +1248,14 @@ def _apply_hermes_transaction_locked(
                     + (f": {stderr}" if stderr else "")
                 )
         _verify_hermes_files(skills_root, checked)
+        lock_after = lock_path.read_bytes()
+        (backup_root / "hermes-lock.after.json").write_bytes(lock_after)
+        try:
+            current_lock = json.loads(lock_after.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ArchiveError("Hermes Hub lock is invalid after update") from exc
+        if _hermes_non_target_content(current_lock) != _hermes_non_target_content(lock_data):
+            raise ArchiveError("unrelated Hermes Hub lock content changed during update")
     except Exception as exc:
         try:
             _rollback_hermes_directories(skills_root, backup_root)
@@ -1298,19 +1307,6 @@ def _apply_hermes_transaction_locked(
                 "message": str(rollback_error),
             }
 
-    try:
-        lock_after = lock_path.read_bytes()
-        (backup_root / "hermes-lock.after.json").write_bytes(lock_after)
-    except OSError as exc:
-        transaction["status"] = "failed"
-        transaction["error"] = str(exc)
-        _write_transaction(transaction_path, transaction)
-        return {
-            "status": "failed",
-            "fatal": True,
-            "backup_path": str(backup_root),
-            "message": str(exc),
-        }
     transaction["status"] = "updated"
     _write_transaction(transaction_path, transaction)
     return {
@@ -1459,7 +1455,10 @@ def fetch_manifest(
     request = Request(url, headers=headers)
     try:
         with urlopen(request, timeout=timeout) as response:
-            content = response.read().decode("utf-8")
+            content_bytes = response.read(MAX_MANIFEST_BYTES + 1)
+            if len(content_bytes) > MAX_MANIFEST_BYTES:
+                raise ValueError("manifest response exceeds its size limit")
+            content = content_bytes.decode("utf-8")
             data = json.loads(content)
             return FetchResult(validate_manifest(data), response.headers.get("ETag"), False)
     except HTTPError as exc:

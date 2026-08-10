@@ -35,6 +35,11 @@ def sha256_file(path: Path) -> str:
 def collect_skill_files(skill_dir: Path) -> dict[str, str]:
     files: dict[str, str] = {}
     for path in sorted(skill_dir.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(
+                f"symlinked release content is not supported: "
+                f"{path.relative_to(skill_dir).as_posix()}"
+            )
         if (
             not path.is_file()
             or LOCK_NAME in path.parts
@@ -49,6 +54,11 @@ def collect_skill_files(skill_dir: Path) -> dict[str, str]:
 def _collect_skill_files_for_manifest(skill_dir: Path) -> dict[str, str]:
     files: dict[str, str] = {}
     for path in sorted(skill_dir.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(
+                f"symlinked release content is not supported: "
+                f"{path.relative_to(skill_dir).as_posix()}"
+            )
         if not path.is_file() or any(part in IGNORED_NAMES for part in path.parts):
             continue
         if path.suffix == ".pyc":

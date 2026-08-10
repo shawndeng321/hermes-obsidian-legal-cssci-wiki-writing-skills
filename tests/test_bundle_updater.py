@@ -431,6 +431,24 @@ class ReleaseContractTests(unittest.TestCase):
             self.assertEqual(set(files), {"SKILL.md", "scripts/tool.py"})
             self.assertRegex(files["SKILL.md"], r"^[0-9a-f]{64}$")
 
+    def test_collect_skill_files_rejects_symlinked_release_content(self):
+        module = load_module(PREPARE, "prepare_bundle_release_symlink")
+        with tempfile.TemporaryDirectory() as tmp:
+            skill = Path(tmp) / "demo"
+            skill.mkdir()
+            linked_path = skill / "linked.txt"
+            linked_path.write_text("simulated link target\n", encoding="utf-8")
+            original_is_symlink = Path.is_symlink
+
+            def simulated_is_symlink(path):
+                if path == linked_path:
+                    return True
+                return original_is_symlink(path)
+
+            with patch.object(Path, "is_symlink", simulated_is_symlink):
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    module.collect_skill_files(skill)
+
     def test_read_skill_version_reads_metadata_version(self):
         module = load_module(PREPARE, "prepare_bundle_release_version")
         with tempfile.TemporaryDirectory() as tmp:
@@ -1097,6 +1115,76 @@ class HermesAdapterTests(unittest.TestCase):
                 fixture.lock["installed"]["unrelated-skill"],
             )
 
+    def test_successful_commands_with_unrelated_lock_drift_require_manual_recovery(self):
+        with self.fixture() as fixture:
+            before_dirs = {
+                skill_name: snapshot_tree(fixture.skills_root / skill_name)
+                for skill_name in SKILLS
+            }
+
+            def runner(command, **kwargs):
+                self.install_incoming(fixture, command[-1])
+                if command[-1] == SKILLS[-1]:
+                    current = json.loads(fixture.lock_path.read_text(encoding="utf-8"))
+                    current["installed"]["unrelated-skill"]["updated_at"] = "concurrent"
+                    write_hermes_lock(fixture.lock_path, current)
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            result = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+            )
+
+            self.assertEqual(result["status"], "manual_recovery_required")
+            for skill_name in SKILLS:
+                self.assertEqual(
+                    snapshot_tree(fixture.skills_root / skill_name),
+                    before_dirs[skill_name],
+                )
+            backup = Path(result["backup_path"])
+            self.assertTrue((backup / "hermes-lock.before.json").is_file())
+            self.assertTrue((backup / "hermes-lock.after.json").is_file())
+
+    def test_post_update_lock_read_failure_rolls_back_target_directories(self):
+        with self.fixture() as fixture:
+            before_dirs = {
+                skill_name: snapshot_tree(fixture.skills_root / skill_name)
+                for skill_name in SKILLS
+            }
+            original_read_bytes = Path.read_bytes
+            lock_reads = 0
+
+            def fail_post_update_lock_read(path):
+                nonlocal lock_reads
+                if path == fixture.lock_path:
+                    lock_reads += 1
+                    if lock_reads >= 3:
+                        raise OSError("simulated post-update lock read failure")
+                return original_read_bytes(path)
+
+            def runner(command, **kwargs):
+                self.install_incoming(fixture, command[-1])
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch.object(Path, "read_bytes", fail_post_update_lock_read):
+                result = self.module.apply_hermes_transaction(
+                    fixture.skills_root,
+                    fixture.lock_path,
+                    fixture.manifest,
+                    fixture.state_root,
+                    runner=runner,
+                )
+
+            self.assertEqual(result["status"], "manual_recovery_required")
+            for skill_name in SKILLS:
+                self.assertEqual(
+                    snapshot_tree(fixture.skills_root / skill_name),
+                    before_dirs[skill_name],
+                )
+
     def test_command_two_failure_restores_all_directories_and_exact_lock_bytes(self):
         with self.fixture() as fixture:
             before_dirs = snapshot_tree(fixture.skills_root)
@@ -1293,6 +1381,33 @@ class HermesAdapterTests(unittest.TestCase):
                 f"{SKILLS[0]}/SKILL.md",
                 blocked["report"]["symlinked"],
             )
+
+    def test_symlink_report_alone_requires_confirmation(self):
+        with self.fixture() as fixture:
+            report = {
+                "status": "local_changes",
+                "modified": [],
+                "deleted": [],
+                "added": [],
+                "symlinked": [f"{SKILLS[0]}/SKILL.md"],
+                "missing_skills": [],
+                "unknown_integrity": [],
+            }
+            with patch.object(
+                self.module,
+                "_hermes_local_report",
+                return_value=report,
+            ):
+                blocked = self.module.apply_hermes_transaction(
+                    fixture.skills_root,
+                    fixture.lock_path,
+                    fixture.manifest,
+                    fixture.state_root,
+                    runner=lambda *_args, **_kwargs: self.fail("runner must not be called"),
+                )
+
+            self.assertEqual(blocked["status"], "confirmation_required")
+            self.assertEqual(blocked["report"], report)
 
     def test_extra_file_during_update_rolls_back_directories_and_lock(self):
         with self.fixture() as fixture:
@@ -1665,6 +1780,29 @@ class SourceTransactionContinuationTests(unittest.TestCase):
 
 
 class UpdateCheckTests(unittest.TestCase):
+    def test_manifest_fetch_rejects_responses_over_the_size_limit(self):
+        module = load_module(UPDATER, "legal_skills_update_manifest_size")
+
+        class OversizedResponse:
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, size=-1):
+                self.requested_size = size
+                return b"x" * (module.MAX_MANIFEST_BYTES + 1)
+
+        response = OversizedResponse()
+        with patch.object(module, "urlopen", return_value=response):
+            with self.assertRaisesRegex(ValueError, "size limit"):
+                module.fetch_manifest(module.MANIFEST_URL, None)
+
+        self.assertEqual(response.requested_size, module.MAX_MANIFEST_BYTES + 1)
+
     def test_fresh_cache_avoids_network_for_six_hours(self):
         module = load_module(UPDATER, "legal_skills_update")
         calls = []
