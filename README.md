@@ -4,7 +4,7 @@
 
 > 本仓库兼容 Hermes 与 Codex。技能正文只保留一份，运行时元数据分别放在 `SKILL.md` 与 `agents/openai.yaml` 中。
 
-[快速选择](#先从这里开始) · [更新内容](#2026-08-更新内容) · [安装](#安装) · [验证](#验证与排错)
+[快速选择](#先从这里开始) · [更新内容](#2026-08-更新内容) · [安装](#安装) · [自动更新](#自动更新) · [验证](#验证与排错)
 
 <p align="center">
   <img src="chinese-law-paper-writing/assets/readme/paper-banner.png" alt="中国法学研究、知识库审计与论文写作技能包" width="100%">
@@ -50,7 +50,7 @@
 
 - **Hermes / Codex 分层**：三项技能共用一份 `SKILL.md` 方法论正文，并分别通过标准 frontmatter 与 `agents/openai.yaml` 提供运行时元数据。
 - **真实 DOCX 脚注**：`md2docx_footnotes.py` 支持显式输入、真实脚注关系、内容类型补齐及重新打开验证。
-- **仓库级回归**：当前发布已通过兼容性测试 8/8、脚本安全测试 9/9，共 17/17；三个 Skill 均通过 Codex `quick_validate.py`。
+- **仓库级回归**：每次发布都要求兼容性、脚本安全与 Bundle 更新器测试全部通过，并让三个 Skill 分别通过 Codex `quick_validate.py`。
 
 本次更新保留原有法学研究与论文写作方法论；详细设计、实施和合并记录见 [`docs/superpowers/`](docs/superpowers/)。
 
@@ -105,6 +105,80 @@ New-Item -ItemType Directory -Force $codexSkills | Out-Null
 Copy-Item -Recurse -Force "$checkout\chinese-law-paper-writing" (Join-Path $codexSkills 'chinese-law-paper-writing')
 Copy-Item -Recurse -Force "$checkout\legal-research-wiki" (Join-Path $codexSkills 'legal-research-wiki')
 Copy-Item -Recurse -Force "$checkout\legal-wiki-audit-repair" (Join-Path $codexSkills 'legal-wiki-audit-repair')
+```
+
+## 自动更新
+
+Bundle `1.0.0` 起，三个法学 Skill 作为一个整体检查和更新。Agent 每次首次使用其中任一 Skill 时都会调用更新检查，但网络请求最多 **每 6 小时**一次；其余加载直接使用缓存。它不是开机自启程序，也没有后台守护进程。需要立即重新检查时，对 Agent 说“**检查法学技能更新**”，它会绕过缓存执行强制检查。
+
+只有检测到更高 Bundle 版本时，Agent 才展示以下四个选择：
+
+```text
+[立即更新] [查看更新说明] [稍后提醒] [忽略此版本]
+```
+
+- **立即更新**：仍需用户明确确认；不会静默运行 `apply`。
+- **查看更新说明**：只显示累计变更、本地差异和版本，不写入文件。
+- **稍后提醒**：暂停提示 4 小时，期间不重复联网。
+- **忽略此版本**：只忽略当前 Bundle；出现更高版本时会重新提示。
+
+更新范围固定为 `chinese-law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair`，不会顺带更新其他 Skill。自动更新器只读取这三个 Skill 目录、自己的状态目录和 GitHub 官方仓库的 HTTPS 发布清单/源码包；它不读取或修改论文、研究 Wiki、Obsidian Vault 等用户研究文件。下载包在写入前必须通过路径、清单、版本和 SHA256 校验。
+
+### 两种安装方式
+
+- **Hermes Skills Hub**：Agent 校验 Hub lock 中三个目标 Skill 的共同 GitHub 来源，完整备份三个目录和 lock，再逐个调用 `hermes skills update <skill-name>`。不会调用裸的全量更新命令，也不会覆盖无关 Skill 的 lock 条目。
+- **Codex / 源码复制**：Agent 先把三个新版目录放到与安装目录相同的文件系统，完整备份旧目录，再作为一个事务替换。Git 工作树或符号链接安装会被拒绝，需改用 Git 更新源码。
+
+发现本地修改、新增、删除、缺失 Skill 或无法验证的文件时，更新器只返回差异报告；覆盖本地修改和安装缺失项是两个独立确认。备份默认位于 Windows 的 `%LOCALAPPDATA%\hermes-legal-research-skills\backups\`，其他系统位于 `$XDG_STATE_HOME/hermes-legal-research-skills/backups/`（未设置时使用 `~/.local/state/...`）。任一步失败都会自动回滚三个 Skill；若 Hermes 的无关 lock 条目在事务中同时变化，则保留前后两份 lock 并要求人工恢复。
+
+更新成功后，请**新建一个 Agent 任务**，让运行时重新加载新版 `SKILL.md`。
+
+### 一次性升级
+
+在 Bundle `1.0.0` 之前安装的旧版本没有清单和包锁，需要先做一次性升级：
+
+- Hermes Hub 用户分别运行以下三个官方更新命令：
+
+```bash
+hermes skills update chinese-law-paper-writing
+hermes skills update legal-research-wiki
+hermes skills update legal-wiki-audit-repair
+```
+
+- Codex 或源码复制用户重新克隆 `main`，再按安装章节复制三个完整目录。
+
+完成后确认三个目录都包含 `bundle-lock.json` 和 `scripts/legal_skills_update.py`，后续即可使用统一更新。
+
+### 检查与开发命令
+
+先解析实际安装根目录，不依赖当前工作目录。下面优先使用 Codex 安装；如果不存在，再使用 Hermes 本地目录：
+
+```powershell
+$codexSkills = Join-Path $HOME '.codex\skills'
+$hermesHome = if ($env:HERMES_HOME) { $env:HERMES_HOME } else { Join-Path $env:LOCALAPPDATA 'hermes' }
+$hermesSkills = Join-Path $hermesHome 'skills'
+$skillsRoot = if (Test-Path (Join-Path $codexSkills 'chinese-law-paper-writing')) { $codexSkills } else { $hermesSkills }
+$updater = Join-Path $skillsRoot 'chinese-law-paper-writing\scripts\legal_skills_update.py'
+```
+
+```powershell
+# 自动检查 / 手动强制检查
+python -X utf8 $updater check --json
+python -X utf8 $updater check --force --json
+
+# 更新说明、稍后提醒、忽略指定 Bundle 版本
+python -X utf8 $updater details --json
+python -X utf8 $updater snooze --hours 4 --json
+python -X utf8 $updater ignore 1.1.0 --json
+```
+
+`diff` 和源码复制模式的 `apply` 只应由 Agent 在下载、解压和校验暂存 Bundle 后调用；不要把未经验证的目录传给它们。以下命令展示接口形状，其中路径必须解析为绝对路径：
+
+```powershell
+python -X utf8 $updater diff --skills-root $skillsRoot --staged-root $stagedRoot --manifest $manifestPath --state-root $stateRoot --json
+
+# 用户明确确认覆盖本地修改后；缺失 Skill 还需单独增加 --install-missing
+python -X utf8 $updater apply --skills-root $skillsRoot --staged-root $stagedRoot --manifest $manifestPath --state-root $stateRoot --allow-local-changes --json
 ```
 
 ## 三分钟工作流

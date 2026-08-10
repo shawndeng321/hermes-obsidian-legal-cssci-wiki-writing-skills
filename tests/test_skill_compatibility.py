@@ -147,6 +147,17 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertIn("## 2026-08 更新内容", root_readme)
         self.assertIn("git clone", root_readme)
         self.assertIn("#安装", root_readme)
+        for phrase in (
+            "每 6 小时",
+            "检查法学技能更新",
+            "稍后提醒",
+            "忽略此版本",
+            "一次性升级",
+            "本地修改",
+            "自动回滚",
+            "新建一个 Agent 任务",
+        ):
+            self.assertIn(phrase, root_readme)
         self.assertNotIn("hermes skills install <本仓库地址>", root_readme)
         for skill_name in SKILLS:
             skill_readme = (ROOT / skill_name / "README.md").read_text(
@@ -154,6 +165,7 @@ class SkillCompatibilityTests(unittest.TestCase):
             )
             self.assertNotIn("git clone <本仓库地址>", skill_readme)
             self.assertIn("../README.md#安装", skill_readme)
+            self.assertIn("../README.md#自动更新", skill_readme)
             self.assertIn("--yes", skill_readme)
 
     def test_documentation_has_no_known_stale_metadata_or_placeholders(self) -> None:
@@ -172,8 +184,9 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertIn("agents/openai.yaml", root_readme)
         self.assertIn("X.Y.Z", root_readme)
         self.assertIn("Hermes 与 Codex", root_readme)
-        self.assertIn("兼容性测试 8/8", root_readme)
-        self.assertIn("脚本安全测试 9/9", root_readme)
+        self.assertNotIn("兼容性测试 8/8", root_readme)
+        self.assertNotIn("脚本安全测试 9/9", root_readme)
+        self.assertIn("兼容性、脚本安全与 Bundle 更新器测试", root_readme)
         self.assertNotIn("尚未合并到 `main`", combined)
         self.assertNotIn("当前优化分支", combined)
         self.assertNotIn("合并到 `main` 后", combined)
