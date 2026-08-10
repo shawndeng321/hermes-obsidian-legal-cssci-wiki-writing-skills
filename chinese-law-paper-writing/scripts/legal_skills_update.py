@@ -1022,31 +1022,83 @@ def _hermes_content_hash(skill_root: Path) -> str:
     return digest.hexdigest()
 
 
+def _hermes_regular_files(skill_root: Path) -> set[str]:
+    files: set[str] = set()
+    for path in sorted(skill_root.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        files.add(path.relative_to(skill_root).as_posix())
+    return files
+
+
+def _hermes_expected_files(entry: dict, skill_name: str) -> set[str] | None:
+    files = entry.get("files")
+    if not isinstance(files, list):
+        return None
+    expected: set[str] = set()
+    casefolded: set[str] = set()
+    for raw_path in files:
+        try:
+            path = _safe_relative_path(raw_path, label=f"Hermes Skill files for {skill_name}")
+        except ArchiveError:
+            return None
+        normalized = path.as_posix()
+        folded = normalized.casefold()
+        if folded in casefolded:
+            return None
+        casefolded.add(folded)
+        expected.add(normalized)
+    return expected
+
+
 def _hermes_local_report(
     skills_root: Path,
     detected: dict,
 ) -> dict:
     modified: list[str] = []
     missing: list[str] = []
+    added: list[str] = []
+    deleted: list[str] = []
+    unknown_integrity: list[str] = []
     for skill_name in SKILLS:
         skill_root = skills_root / skill_name
         if skill_root.is_symlink() or not skill_root.is_dir():
             missing.append(skill_name)
             continue
-        expected = detected["entries"][skill_name].get("content_hash")
-        if isinstance(expected, str) and expected:
-            actual = _hermes_content_hash(skill_root)
-            accepted = {actual, f"sha256:{actual[:16]}"}
-            if expected not in accepted:
-                modified.append(skill_name)
+        entry = detected["entries"][skill_name]
+        expected_files = _hermes_expected_files(entry, skill_name)
+        actual_files = _hermes_regular_files(skill_root)
+        if expected_files is None:
+            unknown_integrity.append(skill_name)
+            continue
+        added.extend(
+            f"{skill_name}/{relative}" for relative in sorted(actual_files - expected_files)
+        )
+        deleted.extend(
+            f"{skill_name}/{relative}" for relative in sorted(expected_files - actual_files)
+        )
+        expected_hash = entry.get("content_hash")
+        if not isinstance(expected_hash, str) or not expected_hash:
+            unknown_integrity.append(skill_name)
+            continue
+        actual = _hermes_content_hash(skill_root)
+        accepted = {actual, f"sha256:{actual[:16]}"}
+        if expected_hash not in accepted:
+            modified.append(skill_name)
     modified.sort()
     missing.sort()
+    added.sort()
+    deleted.sort()
+    unknown_integrity.sort()
     return {
-        "status": "local_changes" if modified or missing else "clean",
+        "status": "local_changes"
+        if modified or missing or added or deleted or unknown_integrity
+        else "clean",
         "modified": modified,
-        "deleted": [],
-        "added": [],
+        "deleted": deleted,
+        "added": added,
         "missing_skills": missing,
+        "unknown_integrity": unknown_integrity,
     }
 
 
@@ -1064,6 +1116,25 @@ def _hermes_non_target_content(lock_data: object) -> dict | None:
 
 def _verify_hermes_files(skills_root: Path, manifest: dict) -> None:
     checked, manifest_files = _checked_manifest_files(manifest)
+    files_by_skill: dict[str, set[str]] = {skill_name: set() for skill_name in SKILLS}
+    for relative in manifest_files:
+        skill_name, _, skill_relative = relative.partition("/")
+        if skill_name not in files_by_skill or not skill_relative:
+            raise ArchiveError(f"installed Hermes file is outside managed Skills: {relative}")
+        files_by_skill[skill_name].add(skill_relative)
+    for skill_name in SKILLS:
+        skill_root = skills_root / skill_name
+        if not skill_root.is_dir():
+            raise ArchiveError(f"installed Hermes Skill is missing: {skill_name}")
+        actual_files = _hermes_regular_files(skill_root)
+        expected_files = files_by_skill[skill_name] | {"bundle-lock.json"}
+        if actual_files != expected_files:
+            missing = sorted(expected_files - actual_files)
+            extra = sorted(actual_files - expected_files)
+            raise ArchiveError(
+                f"installed Hermes file coverage mismatch for {skill_name}; "
+                f"missing={missing}, extra={extra}"
+            )
     for relative, expected_digest in manifest_files.items():
         path = skills_root.joinpath(*PurePosixPath(relative).parts)
         if (
@@ -1072,9 +1143,6 @@ def _verify_hermes_files(skills_root: Path, manifest: dict) -> None:
             or _sha256_file(path) != expected_digest
         ):
             raise ArchiveError(f"installed file hash mismatch: {relative}")
-    for skill_name in SKILLS:
-        if not (skills_root / skill_name).is_dir():
-            raise ArchiveError(f"installed Hermes Skill is missing: {skill_name}")
     if checked["bundle_id"] != BUNDLE_ID:
         raise ArchiveError("installed Hermes Bundle identity is invalid")
 
@@ -1103,7 +1171,15 @@ def _apply_hermes_transaction_locked(
     detected = detect_hermes_bundle(lock_data, skills_root)
     checked, _ = _checked_manifest_files(manifest)
     report = _hermes_local_report(skills_root, detected)
-    if (report["modified"] or report["deleted"] or report["added"]) and not allow_local_changes:
+    if (
+        (
+            report["modified"]
+            or report["deleted"]
+            or report["added"]
+            or report["unknown_integrity"]
+        )
+        and not allow_local_changes
+    ):
         return {
             "status": "confirmation_required",
             "fatal": False,

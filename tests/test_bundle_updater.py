@@ -1189,6 +1189,85 @@ class HermesAdapterTests(unittest.TestCase):
             )
             self.assertEqual(allowed["status"], "updated")
 
+    def test_missing_content_hash_treated_as_local_change(self):
+        with self.fixture() as fixture:
+            lock = json.loads(fixture.lock_path.read_text(encoding="utf-8"))
+            del lock["installed"][SKILLS[0]]["content_hash"]
+            write_hermes_lock(fixture.lock_path, lock)
+            calls = []
+
+            def runner(command, **kwargs):
+                calls.append(command)
+                self.install_incoming(fixture, command[-1])
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            blocked = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+            )
+
+            self.assertEqual(blocked["status"], "confirmation_required")
+            self.assertEqual(calls, [])
+            self.assertEqual(blocked["report"]["status"], "local_changes")
+
+    def test_added_and_deleted_files_require_confirmation(self):
+        cases = (
+            ("added", lambda fixture: (fixture.skills_root / SKILLS[0] / "extra.txt").write_text("extra\n", encoding="utf-8")),
+            ("deleted", lambda fixture: (fixture.skills_root / SKILLS[0] / "agents" / "openai.yaml").unlink()),
+        )
+        for case_name, mutate in cases:
+            with self.subTest(case=case_name), self.fixture() as fixture:
+                mutate(fixture)
+                calls = []
+
+                def runner(command, **kwargs):
+                    calls.append(command)
+                    self.install_incoming(fixture, command[-1])
+                    return subprocess.CompletedProcess(command, 0, "", "")
+
+                blocked = self.module.apply_hermes_transaction(
+                    fixture.skills_root,
+                    fixture.lock_path,
+                    fixture.manifest,
+                    fixture.state_root,
+                    runner=runner,
+                )
+
+                self.assertEqual(blocked["status"], "confirmation_required")
+                self.assertEqual(calls, [])
+                self.assertEqual(blocked["report"]["status"], "local_changes")
+                self.assertTrue(blocked["report"]["added"] or blocked["report"]["deleted"])
+
+    def test_extra_file_during_update_rolls_back_directories_and_lock(self):
+        with self.fixture() as fixture:
+            before_dirs = snapshot_tree(fixture.skills_root)
+            before_lock = fixture.lock_path.read_bytes()
+
+            def runner(command, **kwargs):
+                self.install_incoming(fixture, command[-1])
+                if command[-1] == SKILLS[-1]:
+                    (fixture.skills_root / command[-1] / "unexpected.txt").write_text(
+                        "unexpected\n",
+                        encoding="utf-8",
+                    )
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            result = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+                allow_local_changes=True,
+            )
+
+            self.assertEqual(result["status"], "rolled_back")
+            self.assertEqual(snapshot_tree(fixture.skills_root), before_dirs)
+            self.assertEqual(fixture.lock_path.read_bytes(), before_lock)
+
 class SourceTransactionContinuationTests(unittest.TestCase):
     def setUp(self):
         self.module = load_module(UPDATER, f"legal_skills_transaction_continuation_{self._testMethodName}")
