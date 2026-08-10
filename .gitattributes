@@ -1,0 +1,2 @@
+# Keep release-hashed Skill content byte-stable across Windows and POSIX checkouts.
+* text=auto eol=lf
