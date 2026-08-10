@@ -5,9 +5,10 @@
   "skill_name": "legal-research-wiki",
   "skill_version": "4.2.0",
   "files": {
-    "agents/openai.yaml": "32715f38b3c294e6047531ee661833abff9f33aa927f70a67029405dcc0b7fae",
-    "LICENSE": "53ada70b396ed840311c2c804e81cd22d7a7cbc88bfb9a0131e7f8cdec3fdfd2",
+    "LICENSE": "b3f9110f538701c205a0aade6a72efc69ba5acf96b27caa17814a6332a510b85",
     "README.md": "c01265f66c51a135265c5bcd2071302fb25148ac7a10a7f72d6bde233a7c647f",
+    "SKILL.md": "102666b59a94cf0688c82ea3bb9001578cf99e8aa89e8fd9024ac2693ce1cccd",
+    "agents/openai.yaml": "32715f38b3c294e6047531ee661833abff9f33aa927f70a67029405dcc0b7fae",
     "references/content-completeness.md": "bd77e1d1879d223fe7e3ad5574d3ccee438c27bd4932e607ed30e5823c629e78",
     "references/docx-case-compilation-revalidation.md": "2042641c4521e3a1c4e8029af6c73f074aa67784fbb23190e09e8ad28fabe8fa",
     "references/docx-case-parsing-lessons.md": "bb72b0c9fa0ed6cab5c2d46debc827e89db96c965586c4eecaed04f8fe298844",
@@ -49,7 +50,6 @@
     "scripts/batch_extract_papers.py": "b5dbc29a109ee7f90f43af3797888a2e9dd451641175b9e90b788e8f90a28bb8",
     "scripts/check_wikilinks.py": "9e5540b921b8bedf28b650f4d24ffa9e2a41e8b89aefae2aa41790b47fc97c45",
     "scripts/clean_pdf_artifacts.py": "d528155c8cc5f85d464fad5dda8fd76b1b841af3e513b7a8c314d35ca29c2516",
-    "scripts/legal_skills_update.py": "d6b2c5d0d8f55a645104db6b1ef15e58038382abd0a948a5e1ef71a0d1da2b2c",
-    "SKILL.md": "102666b59a94cf0688c82ea3bb9001578cf99e8aa89e8fd9024ac2693ce1cccd"
+    "scripts/legal_skills_update.py": "d6b2c5d0d8f55a645104db6b1ef15e58038382abd0a948a5e1ef71a0d1da2b2c"
   }
 }

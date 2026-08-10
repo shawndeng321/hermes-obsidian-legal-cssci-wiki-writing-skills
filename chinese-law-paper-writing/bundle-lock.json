@@ -5,7 +5,10 @@
   "skill_name": "chinese-law-paper-writing",
   "skill_version": "5.2.0",
   "files": {
-    ".gitignore": "bff5719e4a3993b0e9982ca4cd98b1190d44fc93dd157a0e715f56053974df43",
+    ".gitignore": "6a81b94bd1bead23e3cabf52807afab7d89e3d73023b8da34e226fa951889b54",
+    "LICENSE": "911bbb65eefae9246cc68a14856c88c28ba0f965b6e4aa3f901d79ae1fda63e6",
+    "README.md": "f6d2baa9a22169d5aa89923e3a538c38db5b4fe2dd6cd4ea173a613fbe9d98ae",
+    "SKILL.md": "962760da40ae3328c6430fefe38337faa3c4dd43c99ae734363e7ea8f35c5452",
     "agents/openai.yaml": "2dc6b8536b37f9d25b1cd77b02fb2a09dfeacee913a20dc80eb4f58de7fce668",
     "assets/readme/paper-banner.png": "a938ae6b48fb5b4ce79720d5457e88c3d8aab3816ef024855b2f3eb99cc1c37c",
     "assets/readme/paper-evidence-chain.png": "3cc817d910d8e27180fb461ba157db89c16f35a591e7486b2c5676efa3dbab76",
@@ -16,8 +19,6 @@
     "assets/templates/source-register.md": "7247ee6ac6f83dbdc29612fa484e427fbab16f46d57b7fbb8bab2656d5a55e24",
     "assets/templates/submission-checklist.md": "af70875e8239b92bf8fbdac9b2bcc6687d60d310023c0e7f42e4557560e82bf4",
     "evals/pressure-tests.md": "ac66d0fee7b1402bcd943490b274eb5acbb13b5cc58b5097a0c20f5bfd2715c2",
-    "LICENSE": "504f9aa89e0a9db1e1655adedb33b9e6ed1326a9eaf75e0c4508b8eb9990eae1",
-    "README.md": "f6d2baa9a22169d5aa89923e3a538c38db5b4fe2dd6cd4ea173a613fbe9d98ae",
     "references/argumentation-details.md": "42e12ad24ffcdace6254132032303730d70deee869e455f5e7e63d74296f956f",
     "references/citation-integrity.md": "1fcdec4e1281c54b3ef6cf1dda1aef269941ccfe0f39c524c21c79e339426e8a",
     "references/docx-production.md": "e4f97ae54b47b651f726f9b250f5999fb8b623bcdff88e871bc8c683393263fb",
@@ -28,7 +29,6 @@
     "references/obsidian-hermes-workflow.md": "25847e585954034ec0575467f393b60adb58c2196be76840def44c0ae4444c4f",
     "references/workflow.md": "691c03c3bc677528ad260a86562388b0ba64873d028d04bba2ca44c11448a897",
     "scripts/legal_skills_update.py": "d6b2c5d0d8f55a645104db6b1ef15e58038382abd0a948a5e1ef71a0d1da2b2c",
-    "scripts/md2docx_footnotes.py": "454d530470981cce81026fd0aa27bd31ff9dab740813587b5bf2740b4d1c1ee2",
-    "SKILL.md": "962760da40ae3328c6430fefe38337faa3c4dd43c99ae734363e7ea8f35c5452"
+    "scripts/md2docx_footnotes.py": "454d530470981cce81026fd0aa27bd31ff9dab740813587b5bf2740b4d1c1ee2"
   }
 }

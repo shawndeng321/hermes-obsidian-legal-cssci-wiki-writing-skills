@@ -260,7 +260,22 @@ def updater_fixture(
             (state_root / "state.json").write_text(
                 json.dumps(initial), encoding="utf-8"
             )
-        with patch.dict(os.environ, {"LOCALAPPDATA": str(state_base)}, clear=False):
+        # Isolate the state root on ALL platforms, not just Windows:
+        #   - Windows: LOCALAPPDATA
+        #   - macOS/Linux: XDG_STATE_HOME, falling back to HOME/.local/state
+        # Without HOME isolation, macOS/Linux tests would read/write the real
+        # ~/.local/state/hermes-legal-research-skills/ and pollute each other.
+        isolated_home = root / "isolated-home"
+        isolated_home.mkdir()
+        with patch.dict(
+            os.environ,
+            {
+                "LOCALAPPDATA": str(state_base),
+                "XDG_STATE_HOME": str(state_base),
+                "HOME": str(isolated_home),
+            },
+            clear=False,
+        ):
             yield SimpleNamespace(
                 root=root,
                 skill_dir=skill_dir,
@@ -2054,6 +2069,8 @@ class UpdateCheckTests(unittest.TestCase):
             base_command = [sys.executable, "-X", "utf8", str(UPDATER)]
             env = dict(os.environ)
             env["LOCALAPPDATA"] = str(fixture.root / "state-base")
+            env["XDG_STATE_HOME"] = str(fixture.root / "state-base")
+            env["HOME"] = str(fixture.root / "isolated-home")
             snoozed = subprocess.run(
                 [*base_command, "snooze", "--hours", "2", "--json"],
                 capture_output=True,
