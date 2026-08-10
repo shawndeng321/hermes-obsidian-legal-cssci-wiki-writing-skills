@@ -1022,13 +1022,18 @@ def _hermes_content_hash(skill_root: Path) -> str:
     return digest.hexdigest()
 
 
-def _hermes_regular_files(skill_root: Path) -> set[str]:
+def _hermes_tree_inventory(skill_root: Path) -> tuple[set[str], set[str]]:
     files: set[str] = set()
+    symlinks: set[str] = set()
     for path in sorted(skill_root.rglob("*")):
-        if not path.is_file() or path.is_symlink():
+        relative = path.relative_to(skill_root).as_posix()
+        if path.is_symlink():
+            symlinks.add(relative)
             continue
-        files.add(path.relative_to(skill_root).as_posix())
-    return files
+        if not path.is_file():
+            continue
+        files.add(relative)
+    return files, symlinks
 
 
 def _hermes_expected_files(entry: dict, skill_name: str) -> set[str] | None:
@@ -1059,6 +1064,7 @@ def _hermes_local_report(
     missing: list[str] = []
     added: list[str] = []
     deleted: list[str] = []
+    symlinked: list[str] = []
     unknown_integrity: list[str] = []
     for skill_name in SKILLS:
         skill_root = skills_root / skill_name
@@ -1067,15 +1073,19 @@ def _hermes_local_report(
             continue
         entry = detected["entries"][skill_name]
         expected_files = _hermes_expected_files(entry, skill_name)
-        actual_files = _hermes_regular_files(skill_root)
+        actual_files, actual_symlinks = _hermes_tree_inventory(skill_root)
+        actual_entries = actual_files | actual_symlinks
+        symlinked.extend(
+            f"{skill_name}/{relative}" for relative in sorted(actual_symlinks)
+        )
         if expected_files is None:
             unknown_integrity.append(skill_name)
             continue
         added.extend(
-            f"{skill_name}/{relative}" for relative in sorted(actual_files - expected_files)
+            f"{skill_name}/{relative}" for relative in sorted(actual_entries - expected_files)
         )
         deleted.extend(
-            f"{skill_name}/{relative}" for relative in sorted(expected_files - actual_files)
+            f"{skill_name}/{relative}" for relative in sorted(expected_files - actual_entries)
         )
         expected_hash = entry.get("content_hash")
         if not isinstance(expected_hash, str) or not expected_hash:
@@ -1089,14 +1099,16 @@ def _hermes_local_report(
     missing.sort()
     added.sort()
     deleted.sort()
+    symlinked.sort()
     unknown_integrity.sort()
     return {
         "status": "local_changes"
-        if modified or missing or added or deleted or unknown_integrity
+        if modified or missing or added or deleted or symlinked or unknown_integrity
         else "clean",
         "modified": modified,
         "deleted": deleted,
         "added": added,
+        "symlinked": symlinked,
         "missing_skills": missing,
         "unknown_integrity": unknown_integrity,
     }
@@ -1124,9 +1136,14 @@ def _verify_hermes_files(skills_root: Path, manifest: dict) -> None:
         files_by_skill[skill_name].add(skill_relative)
     for skill_name in SKILLS:
         skill_root = skills_root / skill_name
-        if not skill_root.is_dir():
+        if skill_root.is_symlink() or not skill_root.is_dir():
             raise ArchiveError(f"installed Hermes Skill is missing: {skill_name}")
-        actual_files = _hermes_regular_files(skill_root)
+        actual_files, actual_symlinks = _hermes_tree_inventory(skill_root)
+        if actual_symlinks:
+            raise ArchiveError(
+                f"installed Hermes Skill contains symlinks for {skill_name}: "
+                f"{sorted(actual_symlinks)}"
+            )
         expected_files = files_by_skill[skill_name] | {"bundle-lock.json"}
         if actual_files != expected_files:
             missing = sorted(expected_files - actual_files)

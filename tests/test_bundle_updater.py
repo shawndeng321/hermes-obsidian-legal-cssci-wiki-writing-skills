@@ -1241,6 +1241,31 @@ class HermesAdapterTests(unittest.TestCase):
                 self.assertEqual(blocked["report"]["status"], "local_changes")
                 self.assertTrue(blocked["report"]["added"] or blocked["report"]["deleted"])
 
+    def test_symlinked_local_content_requires_confirmation_without_link_privileges(self):
+        with self.fixture() as fixture:
+            linked_path = fixture.skills_root / SKILLS[0] / "SKILL.md"
+            original_is_symlink = Path.is_symlink
+
+            def simulated_is_symlink(path):
+                if path == linked_path:
+                    return True
+                return original_is_symlink(path)
+
+            with patch.object(Path, "is_symlink", simulated_is_symlink):
+                blocked = self.module.apply_hermes_transaction(
+                    fixture.skills_root,
+                    fixture.lock_path,
+                    fixture.manifest,
+                    fixture.state_root,
+                    runner=lambda *_args, **_kwargs: self.fail("runner must not be called"),
+                )
+
+            self.assertEqual(blocked["status"], "confirmation_required")
+            self.assertIn(
+                f"{SKILLS[0]}/SKILL.md",
+                blocked["report"]["symlinked"],
+            )
+
     def test_extra_file_during_update_rolls_back_directories_and_lock(self):
         with self.fixture() as fixture:
             before_dirs = snapshot_tree(fixture.skills_root)
@@ -1263,6 +1288,36 @@ class HermesAdapterTests(unittest.TestCase):
                 runner=runner,
                 allow_local_changes=True,
             )
+
+            self.assertEqual(result["status"], "rolled_back")
+            self.assertEqual(snapshot_tree(fixture.skills_root), before_dirs)
+            self.assertEqual(fixture.lock_path.read_bytes(), before_lock)
+
+    def test_symlinked_content_after_update_rolls_back_without_link_privileges(self):
+        with self.fixture() as fixture:
+            before_dirs = snapshot_tree(fixture.skills_root)
+            before_lock = fixture.lock_path.read_bytes()
+            linked_path = fixture.skills_root / SKILLS[-1] / "SKILL.md"
+            original_is_symlink = Path.is_symlink
+
+            def simulated_is_symlink(path):
+                if path == linked_path:
+                    return True
+                return original_is_symlink(path)
+
+            def runner(command, **kwargs):
+                self.install_incoming(fixture, command[-1])
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch.object(Path, "is_symlink", simulated_is_symlink):
+                result = self.module.apply_hermes_transaction(
+                    fixture.skills_root,
+                    fixture.lock_path,
+                    fixture.manifest,
+                    fixture.state_root,
+                    runner=runner,
+                    allow_local_changes=True,
+                )
 
             self.assertEqual(result["status"], "rolled_back")
             self.assertEqual(snapshot_tree(fixture.skills_root), before_dirs)
