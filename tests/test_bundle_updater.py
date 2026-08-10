@@ -3,21 +3,97 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PREPARE = ROOT / "tools" / "prepare_bundle_release.py"
+UPDATER = ROOT / "chinese-law-paper-writing" / "scripts" / "legal_skills_update.py"
 SKILLS = (
     "chinese-law-paper-writing",
     "legal-research-wiki",
     "legal-wiki-audit-repair",
 )
+
+
+def make_manifest(version: str, history: list[dict] | None = None) -> dict:
+    return {
+        "schema_version": 1,
+        "bundle_id": "hermes-legal-research-skills",
+        "bundle_version": version,
+        "published_at": "2026-08-10T00:00:00+08:00",
+        "update_level": "feature",
+        "summary": f"Bundle {version}",
+        "skills": {
+            "chinese-law-paper-writing": "5.1.0",
+            "legal-research-wiki": "4.1.0",
+            "legal-wiki-audit-repair": "4.2.0",
+        },
+        "compatibility": {"hermes": True, "codex": True, "python": ">=3.11"},
+        "changes": [f"Change {version}"],
+        "archive_url": (
+            "https://github.com/shawndeng321/"
+            "hermes-obsidian-legal-cssci-wiki-writing-skills/"
+            "archive/refs/heads/main.zip"
+        ),
+        "files": {
+            "chinese-law-paper-writing/SKILL.md": "a" * 64,
+            "chinese-law-paper-writing/agents/openai.yaml": "b" * 64,
+            "legal-research-wiki/SKILL.md": "c" * 64,
+            "legal-research-wiki/agents/openai.yaml": "d" * 64,
+            "legal-wiki-audit-repair/SKILL.md": "e" * 64,
+            "legal-wiki-audit-repair/agents/openai.yaml": "f" * 64,
+        },
+        "history": history if history is not None else [
+            {
+                "bundle_version": version,
+                "published_at": "2026-08-10T00:00:00+08:00",
+                "update_level": "feature",
+                "summary": f"Bundle {version}",
+                "changes": [f"Change {version}"],
+            }
+        ],
+    }
+
+
+@contextmanager
+def updater_fixture(
+    state: dict | None = None,
+    last_check: float | None = None,
+):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        skill_dir = root / "chinese-law-paper-writing"
+        skill_dir.mkdir()
+        (skill_dir / "bundle-lock.json").write_text(
+            json.dumps({"bundle_version": "1.0.0"}), encoding="utf-8"
+        )
+        state_base = root / "state-base"
+        state_root = state_base / "hermes-legal-research-skills"
+        state_root.mkdir(parents=True)
+        initial = dict(state or {})
+        if last_check is not None:
+            initial["last_network_check"] = last_check
+        if initial:
+            (state_root / "state.json").write_text(
+                json.dumps(initial), encoding="utf-8"
+            )
+        with patch.dict(os.environ, {"LOCALAPPDATA": str(state_base)}, clear=False):
+            yield SimpleNamespace(
+                root=root,
+                skill_dir=skill_dir,
+                state_root=state_root,
+                state_path=state_root / "state.json",
+            )
 
 
 def load_module(path: Path, name: str):
@@ -271,6 +347,225 @@ class ReleaseContractTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 module.build_manifest(root, release)
+
+
+class UpdateCheckTests(unittest.TestCase):
+    def test_fresh_cache_avoids_network_for_six_hours(self):
+        module = load_module(UPDATER, "legal_skills_update")
+        calls = []
+        state = {
+            "last_network_check": 1_000.0,
+            "cached_manifest": make_manifest("1.0.0"),
+            "etag": '"abc"',
+        }
+        with updater_fixture(state=state) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0 + 21_599,
+                fetcher=lambda *args: calls.append(args),
+            )
+        self.assertEqual(result["status"], "cached")
+        self.assertEqual(calls, [])
+
+    def test_six_hour_boundary_fetches_and_finds_newer_version(self):
+        module = load_module(UPDATER, "legal_skills_update_boundary")
+        with updater_fixture(last_check=1_000.0) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0 + 21_600,
+                fetcher=lambda *_: module.FetchResult(make_manifest("1.1.0"), '"new"', False),
+            )
+        self.assertEqual(result["status"], "update_available")
+        self.assertEqual(result["current_version"], "1.0.0")
+        self.assertEqual(result["latest_version"], "1.1.0")
+
+    def test_force_bypasses_a_fresh_cache(self):
+        module = load_module(UPDATER, "legal_skills_update_force")
+        calls = []
+        state = {
+            "last_network_check": 1_000.0,
+            "cached_manifest": make_manifest("1.0.0"),
+        }
+        with updater_fixture(state=state) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                force=True,
+                now=1_001.0,
+                fetcher=lambda *args: (
+                    calls.append(args),
+                    module.FetchResult(make_manifest("1.1.0"), '"new"', False),
+                )[1],
+            )
+        self.assertEqual(result["status"], "update_available")
+        self.assertEqual(len(calls), 1)
+
+    def test_not_modified_reuses_cached_manifest(self):
+        module = load_module(UPDATER, "legal_skills_update_not_modified")
+        state = {
+            "last_network_check": 1_000.0,
+            "cached_manifest": make_manifest("1.1.0"),
+            "etag": '"old"',
+        }
+        with updater_fixture(state=state) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0 + 21_600,
+                fetcher=lambda *_: module.FetchResult(None, '"old"', True),
+            )
+            saved = json.loads(fixture.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(result["status"], "update_available")
+        self.assertEqual(result["latest_version"], "1.1.0")
+        self.assertEqual(saved["last_network_check"], 22_600.0)
+        self.assertEqual(saved["etag"], '"old"')
+
+    def test_offline_is_not_reported_as_up_to_date(self):
+        module = load_module(UPDATER, "legal_skills_update_offline")
+        with updater_fixture() as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0,
+                fetcher=lambda *_: (_ for _ in ()).throw(OSError("offline")),
+            )
+        self.assertEqual(result["status"], "offline")
+        self.assertFalse(result["fatal"])
+        self.assertNotEqual(result["status"], "up_to_date")
+
+    def test_save_state_replaces_a_complete_sibling_file_atomically(self):
+        module = load_module(UPDATER, "legal_skills_update_atomic_state")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            module.save_state(path, {"etag": '"new"', "last_network_check": 123.0})
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8")),
+                {"etag": '"new"', "last_network_check": 123.0},
+            )
+            self.assertEqual(list(Path(tmp).glob("*.tmp")), [])
+
+    def test_state_root_uses_local_app_data_on_windows_and_xdg_on_posix(self):
+        module = load_module(UPDATER, "legal_skills_update_state_roots")
+        self.assertEqual(
+            module.get_state_root(
+                {"LOCALAPPDATA": r"C:\\Users\\Ada\\AppData\\Local"}, "win32"
+            ),
+            Path(r"C:\\Users\\Ada\\AppData\\Local") / "hermes-legal-research-skills",
+        )
+        self.assertEqual(
+            module.get_state_root({"XDG_STATE_HOME": "/var/state", "HOME": "/home/ada"}, "linux"),
+            Path("/var/state/hermes-legal-research-skills"),
+        )
+        self.assertEqual(
+            module.get_state_root({"HOME": "/home/ada"}, "darwin"),
+            Path("/home/ada/.local/state/hermes-legal-research-skills"),
+        )
+
+    def test_expired_snooze_allows_a_new_update_notice(self):
+        module = load_module(UPDATER, "legal_skills_update_snooze_expiry")
+        with updater_fixture(state={"snooze_until": 999.0}) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0,
+                fetcher=lambda *_: module.FetchResult(make_manifest("1.1.0"), '"new"', False),
+            )
+        self.assertEqual(result["status"], "update_available")
+
+    def test_ignored_current_version_suppresses_the_notice(self):
+        module = load_module(UPDATER, "legal_skills_update_ignore")
+        with updater_fixture(state={"ignored_version": "1.1.0"}) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0,
+                fetcher=lambda *_: module.FetchResult(make_manifest("1.1.0"), '"new"', False),
+            )
+        self.assertEqual(result["status"], "ignored")
+
+    def test_higher_version_after_ignored_version_is_announced(self):
+        module = load_module(UPDATER, "legal_skills_update_higher_version")
+        with updater_fixture(state={"ignored_version": "1.1.0"}) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0,
+                fetcher=lambda *_: module.FetchResult(make_manifest("1.2.0"), '"new"', False),
+            )
+        self.assertEqual(result["status"], "update_available")
+        self.assertEqual(result["latest_version"], "1.2.0")
+
+    def test_history_aggregates_cached_and_new_bundle_versions(self):
+        module = load_module(UPDATER, "legal_skills_update_history")
+        cached = make_manifest("1.0.0")
+        incoming = make_manifest(
+            "1.1.0",
+            history=[
+                {
+                    "bundle_version": "0.9.0",
+                    "published_at": "2026-08-01T00:00:00+08:00",
+                    "update_level": "feature",
+                    "summary": "Bundle 0.9.0",
+                    "changes": ["Change 0.9.0"],
+                },
+                *cached["history"],
+                {
+                    "bundle_version": "1.1.0",
+                    "published_at": "2026-08-10T00:00:00+08:00",
+                    "update_level": "feature",
+                    "summary": "Bundle 1.1.0",
+                    "changes": ["Change 1.1.0"],
+                },
+            ],
+        )
+        with updater_fixture(state={"cached_manifest": cached}) as fixture:
+            result = module.check_for_update(
+                fixture.skill_dir,
+                now=1_000.0,
+                fetcher=lambda *_: module.FetchResult(incoming, '"new"', False),
+            )
+            details = module.details(fixture.skill_dir)
+        self.assertEqual(
+            [entry["bundle_version"] for entry in result["history"]],
+            ["0.9.0", "1.0.0", "1.1.0"],
+        )
+        self.assertEqual(details["history"], result["history"])
+
+    def test_cli_state_actions_emit_json_without_touching_skill_directory(self):
+        with updater_fixture() as fixture:
+            before = sorted(path.relative_to(fixture.skill_dir) for path in fixture.skill_dir.rglob("*"))
+            base_command = [sys.executable, "-X", "utf8", str(UPDATER)]
+            env = dict(os.environ)
+            env["LOCALAPPDATA"] = str(fixture.root / "state-base")
+            snoozed = subprocess.run(
+                [*base_command, "snooze", "--hours", "2", "--json"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                cwd=fixture.skill_dir,
+                env=env,
+                check=False,
+            )
+            ignored = subprocess.run(
+                [*base_command, "ignore", "1.1.0", "--json"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                cwd=fixture.skill_dir,
+                env=env,
+                check=False,
+            )
+            detailed = subprocess.run(
+                [*base_command, "details", "--json"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                cwd=fixture.skill_dir,
+                env=env,
+                check=False,
+            )
+            after = sorted(path.relative_to(fixture.skill_dir) for path in fixture.skill_dir.rglob("*"))
+        self.assertEqual(snoozed.returncode, 0, snoozed.stderr)
+        self.assertEqual(ignored.returncode, 0, ignored.stderr)
+        self.assertEqual(detailed.returncode, 0, detailed.stderr)
+        self.assertIn("snooze_until", json.loads(snoozed.stdout))
+        self.assertEqual(json.loads(ignored.stdout)["ignored_version"], "1.1.0")
+        self.assertIn("history", json.loads(detailed.stdout))
+        self.assertEqual(before, after)
 
 
 if __name__ == "__main__":
