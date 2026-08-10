@@ -50,6 +50,6 @@
     "scripts/batch_extract_papers.py": "b5dbc29a109ee7f90f43af3797888a2e9dd451641175b9e90b788e8f90a28bb8",
     "scripts/check_wikilinks.py": "9e5540b921b8bedf28b650f4d24ffa9e2a41e8b89aefae2aa41790b47fc97c45",
     "scripts/clean_pdf_artifacts.py": "d528155c8cc5f85d464fad5dda8fd76b1b841af3e513b7a8c314d35ca29c2516",
-    "scripts/legal_skills_update.py": "d6b2c5d0d8f55a645104db6b1ef15e58038382abd0a948a5e1ef71a0d1da2b2c"
+    "scripts/legal_skills_update.py": "e74cd352e959d63f75e1c4aa401f3bd23b3b81db021a67ae10fc5675068d3a16"
   }
 }

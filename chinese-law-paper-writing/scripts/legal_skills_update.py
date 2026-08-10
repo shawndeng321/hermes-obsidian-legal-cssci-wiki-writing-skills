@@ -433,6 +433,19 @@ def _walk_staged_files(bundle_root: Path) -> dict[str, Path]:
             relative = path.relative_to(bundle_root).as_posix()
             if path.is_symlink() or not path.is_file():
                 raise ArchiveError(f"staged bundle contains an unsafe file: {relative}")
+            # Ignore cache/junk files the same way the release tool does
+            # (prepare_bundle_release.py IGNORED_NAMES): __pycache__, .pyc and
+            # .DS_Store must not fail the staged-coverage check, otherwise a
+            # locally-staged bundle with compiled Python caches is rejected.
+            # Note: bundle-lock.json is deliberately NOT ignored here — the
+            # staged bundle must carry each skill's lock file for verification.
+            rel_parts = PurePosixPath(relative).parts
+            if (
+                "__pycache__" in rel_parts
+                or ".DS_Store" in rel_parts
+                or PurePosixPath(relative).suffix == ".pyc"
+            ):
+                continue
             folded = relative.casefold()
             if folded in casefolded:
                 raise ArchiveError(f"staged bundle has a case-fold collision: {relative}")

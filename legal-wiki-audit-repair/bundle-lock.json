@@ -17,7 +17,7 @@
     "references/paper-case-theme-mapping.md": "2036eb00497278d1334ca43be6c0151d1f1fd84b06ef2ecc75e5022bea732bdc",
     "references/pure-link-verification.md": "8796debe124093c6a6786abf3a08e8914b7b6e855cff686d2080989acc34a4ce",
     "scripts/insert_norm_sections.py": "d35967ff02c1d116bf82062a713464e792f2ad0e60ef55c12bce3457404a512f",
-    "scripts/legal_skills_update.py": "d6b2c5d0d8f55a645104db6b1ef15e58038382abd0a948a5e1ef71a0d1da2b2c",
+    "scripts/legal_skills_update.py": "e74cd352e959d63f75e1c4aa401f3bd23b3b81db021a67ae10fc5675068d3a16",
     "scripts/multimodal_audit.py": "c3d9d7747dcd6182192516dc5ac2c7b9cbba3de2c5cbba4b70b31e4eaba9c31d",
     "scripts/scan_missing_paper_case_links.py": "0877c79adb68d4ad4ba8c3ab50bcd00f2288a0cd930601533c2e08bfb2be165f",
     "scripts/sync_paper_case_links.py": "cdf09ca7de2231a61f3c6e788937beffb89d2db192a2a3e6e4ce26b0afbe846c",

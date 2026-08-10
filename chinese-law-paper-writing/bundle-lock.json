@@ -28,7 +28,7 @@
     "references/multimodal-citation-format.md": "ce484e97c16b1f68d25adcdc21f23d7ae9ec74ec1154af231a19eeda2965f274",
     "references/obsidian-hermes-workflow.md": "25847e585954034ec0575467f393b60adb58c2196be76840def44c0ae4444c4f",
     "references/workflow.md": "691c03c3bc677528ad260a86562388b0ba64873d028d04bba2ca44c11448a897",
-    "scripts/legal_skills_update.py": "d6b2c5d0d8f55a645104db6b1ef15e58038382abd0a948a5e1ef71a0d1da2b2c",
+    "scripts/legal_skills_update.py": "e74cd352e959d63f75e1c4aa401f3bd23b3b81db021a67ae10fc5675068d3a16",
     "scripts/md2docx_footnotes.py": "454d530470981cce81026fd0aa27bd31ff9dab740813587b5bf2740b4d1c1ee2"
   }
 }
