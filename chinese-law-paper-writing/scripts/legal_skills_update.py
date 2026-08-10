@@ -923,6 +923,359 @@ def apply_source_transaction(
         return {"status": "failed", "fatal": True, "message": str(exc)}
 
 
+def read_hermes_lock(lock_path: Path) -> dict:
+    """Read a Hermes Skills Hub lock without accepting an unknown schema."""
+    path = Path(lock_path)
+    if path.is_symlink() or not path.is_file():
+        raise ArchiveError(f"Hermes Hub lock is missing or unsafe: {path}")
+    try:
+        data = json.loads(path.read_bytes().decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ArchiveError(f"invalid Hermes Hub lock: {path}") from exc
+    if not isinstance(data, dict):
+        raise ArchiveError("Hermes Hub lock must be a JSON object")
+    return data
+
+
+def _hermes_repository(identifier: object) -> str:
+    if not isinstance(identifier, str) or not identifier:
+        raise ArchiveError("Hermes Hub entry has no GitHub identifier")
+    value = identifier.strip().rstrip("/")
+    if value.startswith("https://github.com/"):
+        value = value.removeprefix("https://github.com/")
+    elif value.startswith("http://") or value.startswith("https://"):
+        raise ArchiveError("Hermes Hub entry is not a GitHub provenance")
+    parts = value.split("/")
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        raise ArchiveError("Hermes Hub entry has an invalid GitHub identifier")
+    if any(part in {".", ".."} or not part for part in parts):
+        raise ArchiveError("Hermes Hub entry has an unsafe GitHub identifier")
+    return "/".join(parts[:2])
+
+
+def _hermes_install_path(skills_root: Path, skill_name: str, entry: dict) -> Path:
+    install_path = entry.get("install_path")
+    try:
+        relative = _safe_relative_path(install_path, label="Hermes install path")
+    except ArchiveError:
+        raise
+    if len(relative.parts) != 1 or relative.parts[0] != skill_name:
+        raise ArchiveError(f"Hermes install path does not match Skill: {skill_name}")
+    target = skills_root.joinpath(*relative.parts)
+    resolved_root = skills_root.resolve(strict=False)
+    resolved_target = target.resolve(strict=False)
+    if not resolved_target.is_relative_to(resolved_root):
+        raise ArchiveError(f"Hermes install path escapes Skills root: {skill_name}")
+    if target.is_symlink() or not target.is_dir():
+        raise ArchiveError(f"Hermes Skill directory is missing or unsafe: {skill_name}")
+    return target
+
+
+def detect_hermes_bundle(lock_data: dict, skills_root: Path) -> dict:
+    """Validate the exact managed Hermes Hub entries and their provenance."""
+    if not isinstance(lock_data, dict) or lock_data.get("version") != 1:
+        raise ArchiveError("unsupported Hermes Hub lock version")
+    installed = lock_data.get("installed")
+    if not isinstance(installed, dict):
+        raise ArchiveError("Hermes Hub lock has no installed entries")
+
+    skills_root = Path(skills_root)
+    if skills_root.is_symlink() or not skills_root.is_dir():
+        raise ArchiveError(f"Skills root is missing or unsafe: {skills_root}")
+
+    entries: dict[str, dict] = {}
+    repository: str | None = None
+    for skill_name in SKILLS:
+        entry = installed.get(skill_name)
+        if not isinstance(entry, dict):
+            raise ArchiveError(f"Hermes Hub lock is missing managed Skill: {skill_name}")
+        if entry.get("source") != "github":
+            raise ArchiveError(f"Hermes Skill has a mixed source: {skill_name}")
+        entry_repository = _hermes_repository(entry.get("identifier"))
+        if repository is None:
+            repository = entry_repository
+        elif entry_repository != repository:
+            raise ArchiveError("managed Hermes Skills do not share one GitHub repository")
+        _hermes_install_path(skills_root, skill_name, entry)
+        entries[skill_name] = entry
+
+    return {
+        "status": "detected",
+        "version": 1,
+        "repository": repository,
+        "skills": list(SKILLS),
+        "entries": entries,
+    }
+
+
+def _hermes_content_hash(skill_root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(skill_root.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        relative = path.relative_to(skill_root).as_posix()
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _hermes_local_report(
+    skills_root: Path,
+    detected: dict,
+) -> dict:
+    modified: list[str] = []
+    missing: list[str] = []
+    for skill_name in SKILLS:
+        skill_root = skills_root / skill_name
+        if skill_root.is_symlink() or not skill_root.is_dir():
+            missing.append(skill_name)
+            continue
+        expected = detected["entries"][skill_name].get("content_hash")
+        if isinstance(expected, str) and expected:
+            actual = _hermes_content_hash(skill_root)
+            accepted = {actual, f"sha256:{actual[:16]}"}
+            if expected not in accepted:
+                modified.append(skill_name)
+    modified.sort()
+    missing.sort()
+    return {
+        "status": "local_changes" if modified or missing else "clean",
+        "modified": modified,
+        "deleted": [],
+        "added": [],
+        "missing_skills": missing,
+    }
+
+
+def _hermes_non_target_content(lock_data: object) -> dict | None:
+    if not isinstance(lock_data, dict) or not isinstance(lock_data.get("installed"), dict):
+        return None
+    content = {key: value for key, value in lock_data.items() if key != "installed"}
+    content["installed"] = {
+        name: value
+        for name, value in lock_data["installed"].items()
+        if name not in SKILLS
+    }
+    return content
+
+
+def _verify_hermes_files(skills_root: Path, manifest: dict) -> None:
+    checked, manifest_files = _checked_manifest_files(manifest)
+    for relative, expected_digest in manifest_files.items():
+        path = skills_root.joinpath(*PurePosixPath(relative).parts)
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or _sha256_file(path) != expected_digest
+        ):
+            raise ArchiveError(f"installed file hash mismatch: {relative}")
+    for skill_name in SKILLS:
+        if not (skills_root / skill_name).is_dir():
+            raise ArchiveError(f"installed Hermes Skill is missing: {skill_name}")
+    if checked["bundle_id"] != BUNDLE_ID:
+        raise ArchiveError("installed Hermes Bundle identity is invalid")
+
+
+def _rollback_hermes_directories(skills_root: Path, backup_root: Path) -> None:
+    for skill_name in SKILLS:
+        target = skills_root / skill_name
+        _remove_tree(target)
+        backup_skill = backup_root / skill_name
+        if not backup_skill.is_dir():
+            raise ArchiveError(f"backup is missing Hermes Skill: {skill_name}")
+        shutil.copytree(backup_skill, target, symlinks=True)
+
+
+def _apply_hermes_transaction_locked(
+    skills_root: Path,
+    lock_path: Path,
+    manifest: dict,
+    state_root: Path,
+    *,
+    runner,
+    allow_local_changes: bool,
+) -> dict:
+    lock_before = lock_path.read_bytes()
+    lock_data = read_hermes_lock(lock_path)
+    detected = detect_hermes_bundle(lock_data, skills_root)
+    checked, _ = _checked_manifest_files(manifest)
+    report = _hermes_local_report(skills_root, detected)
+    if (report["modified"] or report["deleted"] or report["added"]) and not allow_local_changes:
+        return {
+            "status": "confirmation_required",
+            "fatal": False,
+            "report": report,
+            "modification_report": report,
+        }
+    if report["missing_skills"]:
+        return {
+            "status": "confirmation_required",
+            "fatal": False,
+            "report": report,
+            "modification_report": report,
+        }
+
+    backup_root = state_root / "backups" / (
+        time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f"-{time.time_ns()}"
+    )
+    backup_root.mkdir(parents=True, exist_ok=False)
+    for skill_name in SKILLS:
+        shutil.copytree(skills_root / skill_name, backup_root / skill_name, symlinks=True)
+    (backup_root / "hermes-lock.before.json").write_bytes(lock_before)
+    transaction_path = backup_root / "transaction.json"
+    transaction = {
+        "status": "started",
+        "bundle_version": checked["bundle_version"],
+        "skills": list(SKILLS),
+        "skills_root": str(skills_root.resolve()),
+        "lock_path": str(lock_path.resolve()),
+        "repository": detected["repository"],
+    }
+    _write_transaction(transaction_path, transaction)
+
+    try:
+        for skill_name in SKILLS:
+            command = ["hermes", "skills", "update", skill_name]
+            completed = runner(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                shell=False,
+                check=False,
+            )
+            if getattr(completed, "returncode", 1) != 0:
+                stderr = str(getattr(completed, "stderr", "") or "").strip()
+                raise ArchiveError(
+                    f"Hermes update failed for {skill_name}"
+                    + (f": {stderr}" if stderr else "")
+                )
+        _verify_hermes_files(skills_root, checked)
+    except Exception as exc:
+        try:
+            _rollback_hermes_directories(skills_root, backup_root)
+            try:
+                lock_after = lock_path.read_bytes()
+            except OSError:
+                lock_after = b""
+            (backup_root / "hermes-lock.after.json").write_bytes(lock_after)
+            try:
+                current_lock = json.loads(lock_after.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                current_lock = None
+            unchanged = (
+                _hermes_non_target_content(current_lock)
+                == _hermes_non_target_content(lock_data)
+                and current_lock is not None
+            )
+            if not unchanged:
+                transaction["status"] = "manual_recovery_required"
+                transaction["error"] = str(exc)
+                _write_transaction(transaction_path, transaction)
+                return {
+                    "status": "manual_recovery_required",
+                    "fatal": True,
+                    "backup_path": str(backup_root),
+                    "message": str(exc),
+                    "report": report,
+                }
+            lock_path.write_bytes(lock_before)
+            transaction["status"] = "rolled_back"
+            transaction["error"] = str(exc)
+            _write_transaction(transaction_path, transaction)
+            return {
+                "status": "rolled_back",
+                "fatal": False,
+                "backup_path": str(backup_root),
+                "message": str(exc),
+                "report": report,
+            }
+        except Exception as rollback_error:
+            transaction["status"] = "rollback_failed"
+            transaction["error"] = str(exc)
+            transaction["rollback_error"] = str(rollback_error)
+            _write_transaction(transaction_path, transaction)
+            return {
+                "status": "rollback_failed",
+                "fatal": True,
+                "backup_path": str(backup_root),
+                "message": str(rollback_error),
+            }
+
+    try:
+        lock_after = lock_path.read_bytes()
+        (backup_root / "hermes-lock.after.json").write_bytes(lock_after)
+    except OSError as exc:
+        transaction["status"] = "failed"
+        transaction["error"] = str(exc)
+        _write_transaction(transaction_path, transaction)
+        return {
+            "status": "failed",
+            "fatal": True,
+            "backup_path": str(backup_root),
+            "message": str(exc),
+        }
+    transaction["status"] = "updated"
+    _write_transaction(transaction_path, transaction)
+    return {
+        "status": "updated",
+        "fatal": False,
+        "bundle_version": checked["bundle_version"],
+        "repository": detected["repository"],
+        "backup_path": str(backup_root),
+        "report": report,
+    }
+
+
+def apply_hermes_transaction(
+    skills_root: Path,
+    lock_path: Path,
+    manifest: dict,
+    state_root: Path,
+    *,
+    runner=subprocess.run,
+    allow_local_changes: bool = False,
+) -> dict:
+    """Update exactly the managed Hermes Hub Skills under one operation lock."""
+    skills_root = Path(skills_root)
+    lock_path = Path(lock_path)
+    state_root = Path(state_root)
+    try:
+        resolved_skills = skills_root.resolve(strict=False)
+        resolved_state = state_root.resolve(strict=False)
+        resolved_lock = lock_path.resolve(strict=False)
+        if _paths_overlap(resolved_skills, resolved_state):
+            raise ArchiveError("state root must not overlap Skills root")
+        if not resolved_lock.is_relative_to(resolved_skills):
+            raise ArchiveError("Hermes Hub lock must be inside Skills root")
+        if any(
+            _paths_overlap(resolved_lock, (skills_root / skill_name).resolve(strict=False))
+            for skill_name in SKILLS
+        ):
+            raise ArchiveError("Hermes Hub lock must not be inside a managed Skill")
+        if state_root.is_symlink() or lock_path.is_symlink():
+            raise ArchiveError("Hermes transaction path is a symlink")
+        state_root.mkdir(parents=True, exist_ok=True)
+        with operation_lock(state_root / LOCK_FILE_NAME):
+            return _apply_hermes_transaction_locked(
+                skills_root,
+                lock_path,
+                manifest,
+                state_root,
+                runner=runner,
+                allow_local_changes=allow_local_changes,
+            )
+    except LockBusyError:
+        return {"status": "busy", "fatal": False}
+    except ArchiveError as exc:
+        return {"status": "rejected", "fatal": False, "message": str(exc)}
+    except (OSError, ValueError) as exc:
+        return {"status": "failed", "fatal": True, "message": str(exc)}
+
+
 def get_state_root(
     env: Mapping[str, str] | None = None,
     platform_name: str | None = None,

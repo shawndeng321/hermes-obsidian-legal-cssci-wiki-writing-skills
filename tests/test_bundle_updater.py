@@ -946,6 +946,273 @@ class SourceTransactionTests(unittest.TestCase):
             self.assertEqual(result["status"], "rolled_back")
             self.assertEqual(snapshot_tree(fixture.skills_root), before)
 
+
+def make_hermes_lock(skills_root: Path, *, version: int = 1) -> dict:
+    installed = {}
+    repository = "shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills"
+    for skill_name in SKILLS:
+        skill_root = skills_root / skill_name
+        content_hash = hashlib.sha256()
+        for path in sorted(skill_root.rglob("*")):
+            if path.is_file():
+                relative = path.relative_to(skill_root).as_posix()
+                content_hash.update(relative.encode("utf-8"))
+                content_hash.update(b"\0")
+                content_hash.update(path.read_bytes())
+        installed[skill_name] = {
+            "source": "github",
+            "identifier": f"{repository}/{skill_name}",
+            "trust_level": "community",
+            "scan_verdict": "safe",
+            "content_hash": content_hash.hexdigest(),
+            "install_path": skill_name,
+            "files": ["SKILL.md", "agents/openai.yaml", "bundle-lock.json"],
+        }
+    installed["unrelated-skill"] = {
+        "source": "github",
+        "identifier": "someone/other-repository/unrelated-skill",
+        "install_path": "unrelated-skill",
+        "content_hash": "sha256:unrelated",
+    }
+    return {"version": version, "installed": installed}
+
+
+def write_hermes_lock(path: Path, data: dict) -> bytes:
+    content = (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return content
+
+
+class HermesAdapterTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_module(UPDATER, f"legal_skills_hermes_{self._testMethodName}")
+
+    @contextmanager
+    def fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skills_root = root / "skills"
+            state_root = root / "state"
+            lock_path = skills_root / ".hub" / "lock.json"
+            skills_root.mkdir()
+            state_root.mkdir()
+            manifest, files = make_transaction_bundle()
+            write_installation(skills_root)
+            lock = make_hermes_lock(skills_root)
+            write_hermes_lock(lock_path, lock)
+            yield SimpleNamespace(
+                root=root,
+                skills_root=skills_root,
+                state_root=state_root,
+                lock_path=lock_path,
+                manifest=manifest,
+                files=files,
+                lock=lock,
+            )
+
+    def install_incoming(self, fixture, skill_name):
+        skill_root = fixture.skills_root / skill_name
+        for relative, content in fixture.files.items():
+            prefix = f"{skill_name}/"
+            if relative.startswith(prefix):
+                path = skill_root / relative[len(prefix):]
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+
+    def test_reads_and_detects_three_target_skills_from_one_github_repository(self):
+        with self.fixture() as fixture:
+            lock = self.module.read_hermes_lock(fixture.lock_path)
+            detected = self.module.detect_hermes_bundle(lock, fixture.skills_root)
+
+        self.assertEqual(detected["repository"], "shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills")
+        self.assertEqual(detected["skills"], list(SKILLS))
+
+    def test_rejects_mixed_sources_and_unknown_lock_versions(self):
+        with self.fixture() as fixture:
+            mixed = json.loads(json.dumps(fixture.lock))
+            mixed["installed"][SKILLS[1]]["source"] = "official"
+            with self.assertRaises(self.module.ArchiveError):
+                self.module.detect_hermes_bundle(mixed, fixture.skills_root)
+
+            with self.assertRaises(self.module.ArchiveError):
+                self.module.detect_hermes_bundle(
+                    {**fixture.lock, "version": 2}, fixture.skills_root
+                )
+
+    def test_updates_each_skill_with_an_explicit_command_and_keeps_unrelated_lock_entry(self):
+        with self.fixture() as fixture:
+            commands = []
+
+            def runner(command, **kwargs):
+                commands.append(command)
+                self.install_incoming(fixture, command[-1])
+                return subprocess.CompletedProcess(command, 0, "updated\n", "")
+
+            result = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+            )
+
+            expected = [
+                ["hermes", "skills", "update", "chinese-law-paper-writing"],
+                ["hermes", "skills", "update", "legal-research-wiki"],
+                ["hermes", "skills", "update", "legal-wiki-audit-repair"],
+            ]
+            self.assertEqual(commands, expected)
+            self.assertEqual(result["status"], "updated")
+            self.assertEqual(
+                json.loads(fixture.lock_path.read_text(encoding="utf-8"))["installed"]["unrelated-skill"],
+                fixture.lock["installed"]["unrelated-skill"],
+            )
+
+    def test_command_two_failure_restores_all_directories_and_exact_lock_bytes(self):
+        with self.fixture() as fixture:
+            before_dirs = snapshot_tree(fixture.skills_root)
+            before_lock = fixture.lock_path.read_bytes()
+            calls = []
+
+            def runner(command, **kwargs):
+                calls.append(command)
+                self.install_incoming(fixture, command[-1])
+                if len(calls) == 2:
+                    return subprocess.CompletedProcess(command, 1, "", "failed")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            result = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+            )
+
+            self.assertEqual(result["status"], "rolled_back")
+            self.assertEqual(snapshot_tree(fixture.skills_root), before_dirs)
+            self.assertEqual(fixture.lock_path.read_bytes(), before_lock)
+
+    def test_hash_mismatch_rolls_back_directories_and_lock(self):
+        with self.fixture() as fixture:
+            before_dirs = snapshot_tree(fixture.skills_root)
+            before_lock = fixture.lock_path.read_bytes()
+
+            def runner(command, **kwargs):
+                self.install_incoming(fixture, command[-1])
+                if command[-1] == SKILLS[-1]:
+                    (fixture.skills_root / command[-1] / "SKILL.md").write_bytes(b"tampered\n")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            result = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+            )
+
+            self.assertEqual(result["status"], "rolled_back")
+            self.assertEqual(snapshot_tree(fixture.skills_root), before_dirs)
+            self.assertEqual(fixture.lock_path.read_bytes(), before_lock)
+
+    def test_unrelated_lock_change_requires_manual_recovery_and_preserves_both_lock_copies(self):
+        with self.fixture() as fixture:
+            before_dirs = {
+                skill_name: snapshot_tree(fixture.skills_root / skill_name)
+                for skill_name in SKILLS
+            }
+            before_lock = fixture.lock_path.read_bytes()
+
+            def runner(command, **kwargs):
+                self.install_incoming(fixture, command[-1])
+                if command[-1] == SKILLS[-1]:
+                    current = json.loads(fixture.lock_path.read_text(encoding="utf-8"))
+                    current["installed"]["unrelated-skill"]["updated_at"] = "concurrent"
+                    write_hermes_lock(fixture.lock_path, current)
+                return subprocess.CompletedProcess(
+                    command,
+                    1 if command[-1] == SKILLS[-1] else 0,
+                    "",
+                    "failed" if command[-1] == SKILLS[-1] else "",
+                )
+
+            result = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+            )
+
+            self.assertEqual(result["status"], "manual_recovery_required")
+            self.assertEqual(
+                {
+                    skill_name: snapshot_tree(fixture.skills_root / skill_name)
+                    for skill_name in SKILLS
+                },
+                before_dirs,
+            )
+            self.assertNotEqual(fixture.lock_path.read_bytes(), before_lock)
+            backup = Path(result["backup_path"])
+            self.assertEqual((backup / "hermes-lock.before.json").read_bytes(), before_lock)
+            self.assertEqual((backup / "hermes-lock.after.json").read_bytes(), fixture.lock_path.read_bytes())
+
+    def test_local_changes_require_confirmation_but_can_be_explicitly_allowed(self):
+        with self.fixture() as fixture:
+            (fixture.skills_root / SKILLS[0] / "SKILL.md").write_text("local edit\n", encoding="utf-8")
+            calls = []
+
+            def runner(command, **kwargs):
+                calls.append(command)
+                self.install_incoming(fixture, command[-1])
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            blocked = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+            )
+            self.assertEqual(blocked["status"], "confirmation_required")
+            self.assertEqual(calls, [])
+
+            allowed = self.module.apply_hermes_transaction(
+                fixture.skills_root,
+                fixture.lock_path,
+                fixture.manifest,
+                fixture.state_root,
+                runner=runner,
+                allow_local_changes=True,
+            )
+            self.assertEqual(allowed["status"], "updated")
+
+class SourceTransactionContinuationTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_module(UPDATER, f"legal_skills_transaction_continuation_{self._testMethodName}")
+
+    @contextmanager
+    def fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            skills_root = root / "skills"
+            staged_root = root / "staged"
+            state_root = root / "state"
+            skills_root.mkdir()
+            state_root.mkdir()
+            manifest, files = make_transaction_bundle()
+            write_installation(skills_root)
+            write_staged_bundle(staged_root, manifest, files)
+            yield SimpleNamespace(
+                root=root,
+                skills_root=skills_root,
+                staged_root=staged_root,
+                state_root=state_root,
+                manifest=manifest,
+            )
+
     def test_local_changes_need_an_independent_confirmation(self):
         with self.fixture() as fixture:
             local_file = fixture.skills_root / SKILLS[0] / "SKILL.md"
