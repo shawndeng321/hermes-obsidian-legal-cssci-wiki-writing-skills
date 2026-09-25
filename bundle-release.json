@@ -23,7 +23,8 @@
     "审计技能 5.0.0：批量操作手册通用化（表格别名统一为 \\|），新增评估场景",
     "修复：PDF 残留清洗不再损坏案例页；死链检查兼容 Python 3.9，按 Obsidian 规则解析并容忍草稿中的脚注标记",
     "兼容性：新增 Claude Code 插件安装；描述适配 Hermes 的 57 字符显示；命令统一为 python3（Windows 用 py）；Python 3.9+ 即可",
-    "更新器：识别 Claude Code 插件安装；支持技能分放在分类子目录（如 Hermes 的 research/），原地更新与回滚"
+    "更新器：识别 Claude Code 插件安装；支持技能分放在分类子目录（如 Hermes 的 research/），原地更新与回滚",
+    "按原生多模态模型精简：模型直接读图片与扫描件，删除“不支持看图”时的检查与分工；音频仍通过转录处理"
   ],
   "archive_url": "https://github.com/shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/archive/refs/heads/main.zip",
   "files": {
@@ -65,9 +66,9 @@
     "chinese-law-paper-writing/references/workflow.md": "0ac02f737b6339d44ea6569f49137ed49401089e8d36b7727e2a62d68e451e6c",
     "chinese-law-paper-writing/scripts/legal_skills_update.py": "edbf5f8b65a0f4e34e811d1c08c38732e3762abf27ab9e4848f65827ca5363de",
     "chinese-law-paper-writing/scripts/md2docx_footnotes.py": "6bcb1991fe1aa76bfe817da66d6f418566dc74d0963e3530569f2b7bee4841cf",
-    "legal-research-wiki/CHANGELOG.md": "7dceeccfb8109ea25fb6453c67f9a96dad3bb89f791af1ff54cd2f6802c1042b",
+    "legal-research-wiki/CHANGELOG.md": "c5ec7b4bd9375b92dfc44d0449edb1d31d8cf4a20344ed80d321aff39c13eb4f",
     "legal-research-wiki/LICENSE": "b3f9110f538701c205a0aade6a72efc69ba5acf96b27caa17814a6332a510b85",
-    "legal-research-wiki/README.md": "790a12c4ce59a2758da9d281c3e01b210dadae27ca32442105c77353554f9eb0",
+    "legal-research-wiki/README.md": "d37d0f5346f88ef0872cc658818dac7d19b74e1d31fe2d899a04797b19464cf7",
     "legal-research-wiki/SKILL.md": "6287e803493568afe89091cf513ac66d5cca612e637e636af052b101e64f192b",
     "legal-research-wiki/agents/openai.yaml": "32715f38b3c294e6047531ee661833abff9f33aa927f70a67029405dcc0b7fae",
     "legal-research-wiki/assets/templates/README.md": "89c8a39c53158d89c8b9db8338a3d3ba7fc98b5c142f3254a35b7735e8ac143b",
@@ -91,7 +92,7 @@
     "legal-research-wiki/assets/templates/research-design.md": "15ecfdbbad3a785b843e2d575485f6c013b6d53f0d1c8be334497e50e06a3636",
     "legal-research-wiki/assets/templates/wiki-design-brief.md": "87f4ba284aaf0e1f13c9f688c6e951c9bb3c2cf9793c3ab5f1b2141b3a854408",
     "legal-research-wiki/assets/templates/writing-outline.md": "b6494949f573fcc9a045479cb6a3d73fa12b0ac0e4ddf8107f8402b67358cc46",
-    "legal-research-wiki/bundle-lock.json": "ae32841829b514dfaa9da408520c83ece30cb0b36a82ed549d17de6a42b8c31e",
+    "legal-research-wiki/bundle-lock.json": "96f03a77b6d6c407ddae6daab8826eb0f482fbbd9dc27f42ce1d6c3df74c5dd5",
     "legal-research-wiki/evals/pressure-tests.md": "58dfc151bd69ec55a120937841c27a8dbae63ae3effdd07d8c444ca07cadbe1f",
     "legal-research-wiki/references/case-ingestion.md": "959d733633d3e397a8baa788c42a3f88d845888cd98607d441515c677dd54e08",
     "legal-research-wiki/references/content-completeness.md": "bd77e1d1879d223fe7e3ad5574d3ccee438c27bd4932e607ed30e5823c629e78",
@@ -103,14 +104,14 @@
     "legal-research-wiki/references/legal-norm-hierarchy-and-reply-ingestion.md": "14641a3ea9328b5aa8aeb49f66b9e5b20b7539893298eb26a27a0cfb35801d3a",
     "legal-research-wiki/references/linking-and-cross-references.md": "0e4141a619f680fda614788f6af2b91875694d781a91a7378feb18efd94a38df",
     "legal-research-wiki/references/literature-audit-and-repair.md": "fbf0c9fdda20134d99900c57aee16298c04cda35e171dce52e8e951d5e21f5f1",
-    "legal-research-wiki/references/model-orchestrated-legal-research-workflow.md": "08cc9f8fdaf4b7d99c97f1ed22817d97abed33dbfb4de4a7a4557c74a722747d",
+    "legal-research-wiki/references/model-orchestrated-legal-research-workflow.md": "cf1d82b3294c57265fa749a21505969f716bd379eb12429116b7de1e875fc161",
     "legal-research-wiki/references/multimodal-audio-ingest.md": "614348c1c86b61ae2abf4e7984a14f49c0b6b81f95df6c80635e1dd20702574d",
     "legal-research-wiki/references/multimodal-bulk-refs.md": "430edb922eac58dde04666dc9d73a75fdbf1f067b29aeca103cdb00b6c43a95b",
-    "legal-research-wiki/references/multimodal-image-ingest.md": "69d4bb973b006db537d81cb03da68ea235ab574adb22373b9004ba732b07363e",
+    "legal-research-wiki/references/multimodal-image-ingest.md": "1ebdae341657db883d8cfd91a40a6a3db1107cbdc134f4ec1ed3cc54f1b23346",
     "legal-research-wiki/references/multimodal-obsidian-headless.md": "089a20ed03064aeea2cb40a3872d6ed55fef34321a147990d4de36d82ae412c0",
     "legal-research-wiki/references/multimodal-pdf-extraction.md": "a722e15058d2d1d41a2b64796f56be319dc77c2ebed52aa09460a30448c76fa7",
     "legal-research-wiki/references/norm-versioning.md": "04cca26d8f12a288f99e861f5a03e9001178798ac308599db8142c1acbdfb7fe",
-    "legal-research-wiki/references/pdf-paper-ingestion.md": "59edc69323fe56564515346a07552545c34df6e6c37a75cbad2dd3ff01d81427",
+    "legal-research-wiki/references/pdf-paper-ingestion.md": "1c0fb721b4c84f5fa9b06a55eedeb3ae3733921da4db908b5bf42e08b6993995",
     "legal-research-wiki/references/pitfalls-and-lessons.md": "2a9cc6cd9bca4457aff78f2c5069e405b24bd670ee06b8bdc02b606f56382ab4",
     "legal-research-wiki/references/research-design-pages.md": "2a50ac1650c306b036d21c9e3690246927d1d8b7b1fb792cf8b8214e5dddf496",
     "legal-research-wiki/references/staged-deep-repair.md": "b338f8b6fef480ef98fc26efea323e7b2c458f1b5b8eaa8eb3be1b71f38dda5a",
@@ -164,7 +165,8 @@
         "审计技能 5.0.0：批量操作手册通用化（表格别名统一为 \\|），新增评估场景",
         "修复：PDF 残留清洗不再损坏案例页；死链检查兼容 Python 3.9，按 Obsidian 规则解析并容忍草稿中的脚注标记",
         "兼容性：新增 Claude Code 插件安装；描述适配 Hermes 的 57 字符显示；命令统一为 python3（Windows 用 py）；Python 3.9+ 即可",
-        "更新器：识别 Claude Code 插件安装；支持技能分放在分类子目录（如 Hermes 的 research/），原地更新与回滚"
+        "更新器：识别 Claude Code 插件安装；支持技能分放在分类子目录（如 Hermes 的 research/），原地更新与回滚",
+        "按原生多模态模型精简：模型直接读图片与扫描件，删除“不支持看图”时的检查与分工；音频仍通过转录处理"
       ]
     }
   ]

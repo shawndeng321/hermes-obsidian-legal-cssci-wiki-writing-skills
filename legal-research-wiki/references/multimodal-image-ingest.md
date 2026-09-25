@@ -11,16 +11,12 @@ or a figure pulled from an article — is a **first-class source**, NOT a passiv
 `raw/assets/` attachment. It gets the same treatment as a PDF: the original is archived
 immutably and a text extract is saved beside it. This doc defines that flow.
 
-## 宿主能力检查
-
-不同宿主的图片工具名和模型路由不同。摄入前先确认当前宿主能读取本地或附件图片，并且所选模型支持视觉输入：Hermes 部署可能暴露 `vision_analyze`；Claude Code 可用读文件工具直接查看图片；Codex 可使用当前任务提供的图片查看能力。若宿主只有文本模型，应停止并报告能力缺口，不得根据文件名或上下文臆测图片内容。
-
 ## Directory roles (keep these SEPARATE)
 
 ```
 raw/screenshots/
     <topic>.png   # ORIGINAL image — immutable Layer-1 source / evidence. Never embedded directly, never edited.
-    <topic>.md    # vision text extract — saved beside the original (mirrors raw/papers/ .pdf + .md)
+    <topic>.md    # text extract — saved beside the original (mirrors raw/papers/ .pdf + .md)
 raw/assets/
     <topic>.png   # DISPLAY copy — created ONLY when a Layer-2 page embeds the image via ![[...]]
 ```
@@ -37,8 +33,8 @@ raw/assets/
 Save the source image to `raw/screenshots/<topic>.png` (descriptive, lowercase-hyphen name).
 If it was pasted in chat, first resolve the real local or exported attachment path provided by the host, then copy it to `raw/screenshots/` with a real name. Never modify it afterward.
 
-### 2. Read it with the vision model
-Run the host's available image-analysis capability on the saved PNG with a thorough-description prompt, e.g.:
+### 2. Read the image
+Open the saved PNG directly with the model (current models read images natively) and describe it thoroughly, e.g.:
 
 > "Describe everything in this image in exhaustive detail: all text, labels, numbers,
 > modules/boxes, arrows and their direction, colors, and overall layout. Transcribe any
@@ -55,15 +51,16 @@ source: raw/screenshots/<topic>.png          # the original this was extracted f
 source_url: ''                               # if the image came from a web page, put it here
 ingested: YYYY-MM-DD
 sha256: <hex digest of the description BODY below>
-extracted_by: vision (<vision model id>)     # which model read it — provenance
+extracted_by: <model id>                     # which model read it — provenance
 confidence: medium                           # vision can misread diagrams — see caveat
 ---
 
 ![[<topic>.png]]
 
-<full vision description, verbatim>
+<full description, verbatim>
 ```
 
+- Keep the text extract even though the model can look at the image again later: the extract is what makes the image searchable, citable and linkable in the wiki, and it records exactly what was read at ingestion time.
 - **`sha256` must be REAL** — compute it over the description body (everything after the
   closing `---`). Do NOT fabricate a placeholder. (Observed failure: a fake `a1b2c3…` hash
   silently breaks drift detection.)
