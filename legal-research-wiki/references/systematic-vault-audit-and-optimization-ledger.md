@@ -203,6 +203,20 @@ Future run template:
 
 Keep the global action log concise; keep detailed evidence and acceptance results in the optimization ledger. Each optimization should update both without duplicating the full narrative.
 
+### Three maintenance files, not two duplicate logs
+
+When reorganizing a vault's audit/optimization records, give each file one role:
+
+1. **排查修复流程与整改台账** (process manual + issue ledger): how to inspect, open findings (OPT-001-style numbered items with acceptance criteria), and a rule write-back zone. Renaming a bare `优化log.md` to this name makes the dual role explicit.
+2. **`log.md`** (timeline): one line per action pointing to the ledger and `.maintenance/`; never duplicate the full execution narrative.
+3. **`.maintenance/OPT-编号/`** (evidence): backups, diffs, hashes and manifests per batch.
+
+Detailed narratives live in exactly one place. Historical log entries that mention an old filename are intentional false positives: keep them and update only live references.
+
+### Rule write-back discipline
+
+The agent may register rule candidates (`RULE-CANDIDATE-XXX`) but never self-confirm them. Promotion to a confirmed rule requires all of: (1) recurrence in at least two independent batches; (2) page plus raw-source evidence; (3) a passing full-vault regression; (4) no change to the research question, core classification, source credibility, legal validity or statistical definitions; (5) user confirmation, or membership in quality rules the user has already approved. This keeps project-level learning auditable without letting the model silently change the research contract.
+
 ## 12. Durable lessons
 
 - “No empty pages” is only the first quality layer. Plausible-looking templated analysis is more dangerous than an obvious blank page.

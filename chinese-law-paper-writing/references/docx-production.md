@@ -1,81 +1,108 @@
----
-name: academic-paper-docx
-description: Use when 把论文md转成投稿docx（真实Word脚注、样稿格式复刻）。docx生产执行细则。
-version: 1.0.0
----
+# 投稿 DOCX 生成：真实脚注与样稿格式复刻
 
-# 学术论文投稿 docx 生成（真实脚注 + 样稿格式复刻）
+用于把 Markdown 工作稿转成带 **Word 真实脚注**（页面底部自动编号，而非文末列表）的投稿 DOCX，或让新版稿件逐项复刻一份已定稿样稿的格式。内容、引注和期刊要求仍按 `SKILL.md` 与 [期刊适配](journal-adaptation.md) 执行；本文件只管文件生产。
 
-> 2026-08 实测：3.0 初稿 docx → 4.0 初稿 docx 完全复刻（用户强调"格式也很重要"——投稿稿 docx 必须与已定稿样稿逐项一致：字体/字号/行距/缩进/页边距/真脚注）。与 chinese-law-paper-writing（写作总纲，user-owned）配合：总纲管内容与期刊适配，本技能管 docx 生产执行。
+配套脚本：[`scripts/md2docx_footnotes.py`](../scripts/md2docx_footnotes.py)。
 
-## When to Use
+## 适用情形
 
-- 论文 md 工作稿 → 投稿 docx（带**真实 Word 脚注**，页脚自动编号，非文末列表）；
-- 已有定稿样稿 docx，新版本要逐项复刻其格式；
-- 任何需要在 docx 中注入真实脚注、或从样稿继承样式/页面设置的任务。
-
-## 核心思路：以样稿 docx 为模板，不从零设样式
-
-1. `shutil.copy(样稿.docx, 新稿.docx)` → python-docx 打开；
-2. 清空 body 内除 `w:sectPr` 外的全部元素（样式/页面设置自动继承，天然一致）；
-3. 写入新内容（应用样稿已有样式名：一级标题/二级标题/三级标题/正文1/FootnoteText/FootnoteReference）；
-4. 注入真实脚注（见下）。
-
-## python-docx 的脚注限制（关键坑）
-
-- python-docx **不解析 footnotes 关系**：`doc.part.package.part_related_by(".../footnotes")` 抛 `KeyError`。不要试图用它直接操作脚注。
-- **两步法**：
-  1. python-docx 写正文，脚注位置插入唯一占位符文本（如 `〔FNREF_1〕`，全角括号避免与正文歧义）；
-  2. zipfile 重打包：读 `word/document.xml`，正则把占位符替换为
-     `<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="N"/></w:r>`；
-     用 lxml 重建整个 `word/footnotes.xml`（保留 `id="-1"` separator、`id="0"` continuationSeparator，追加 N 条 footnote：段落样式 `FootnoteText`、`<w:footnoteRef/>` + 内容 run，字号 `sz val="18"`=9pt）。
-     若模板没有 `word/footnotes.xml`，配套脚本会同时补齐 footnotes relationship 与 `[Content_Types].xml` override。
-- 保存 = zipfile 重写整个 zip：读出所有条目，仅替换 document.xml 与 footnotes.xml，其余原样写回（`zout.writestr(info, data)` 保留原 ZipInfo）。
-
-## lxml 坑
-
-- `etree.SubElement(el, tag, {w("xml:space"): "preserve"})` 抛 `ValueError: Invalid attribute name 'xml:space'`（xml 前缀保留）→ 先建元素再 `t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")`。
+- Markdown 工作稿 → 投稿 DOCX（真实脚注）；
+- 已有定稿样稿或期刊模板 DOCX，新版本要复刻其字体、字号、行距、缩进、页边距；
+- 需要同时交付“干净版”和“修改标注版”（改动处红色）。
 
 ## 环境
 
-- macOS 系统 python3 常无 pip；用 `~/.hermes/bin/uv run --with python-docx python3 script.py`（uv 临时依赖，免装环境）。
-- 长中文脚本先 write_file 存 .py 再运行（heredoc 偶发编码失败）。
+```bash
+python3 -m pip install python-docx lxml
+```
 
-## 《政治与法律》样稿格式规范（实测值，可直接套用）
+- Windows 上用 `py` 代替 `python3`；macOS 系统 Python 没有 pip 时，用 `python3 -m venv` 建虚拟环境，或用 `uv run --with python-docx --with lxml python ...`。
+- 包含中文的长脚本先保存为 `.py` 文件再运行，避免 shell heredoc 编码问题。
+- 所有临时文件放在系统临时目录或输出目录；脚本默认在输出目录旁创建临时文件，不写 `/tmp` 等固定路径。
 
-| 项目 | 值 |
+## 核心思路：以样稿为模板，不从零设样式
+
+1. 复制样稿 DOCX 为新文件，用 python-docx 打开；
+2. 清空正文中除 `w:sectPr`（页面设置）外的全部元素，样式和页面设置自然继承；
+3. 按样稿已有样式写入新内容；
+4. 注入真实脚注。
+
+没有样稿时，可以让用户提供目标期刊模板，或先用 Word 建一份带所需样式的空白文档作为模板。
+
+### 模板样式约定
+
+脚本优先使用模板中的以下样式名；缺失时自动回退到 Word 内置样式（`Heading 1/2/3`、`Normal`），并在终端提示：
+
+| 用途 | 首选样式名 | 回退 |
+|---|---|---|
+| 一级标题（一、二、……） | `一级标题` | `Heading 1` |
+| 二级标题（（一）（二）……） | `二级标题` | `Heading 2` |
+| 三级标题（1. 2. ……） | `三级标题` | `Heading 3` |
+| 正文 | `正文1` | `Normal` |
+| 脚注 | `FootnoteText` / `FootnoteReference` | 由脚本写入基本格式 |
+
+各部分的中西文字体与字号在脚本顶部 `FONTS` 配置中集中设定，默认值是中文法学期刊常见版式（标题黑体、正文宋体/Times New Roman 10.5pt、脚注 9pt）。**具体数值以目标期刊要求或样稿实测为准**，不要把默认值当作任何期刊的规定。
+
+## 样稿格式记录表
+
+复刻样稿前，逐项量取并记录（可在 Word 中查看段落与字体设置），交付时附在说明中：
+
+| 项目 | 样稿实测值 |
 |---|---|
-| 页面 | A4 21×28.5cm；边距 上2.05 下1.65 左2.10 右2.10 cm |
-| 大标题 | 黑体(eastAsia)+Times New Roman(ascii) 20pt 居中 |
-| 作者姓名 | Times New Roman 11pt 居中 |
-| 单位 | 楷体 10.5pt 居中 |
-| 摘要/关键词 | "摘　要："黑体 + 内容楷体，两端对齐（Normal 样式，首行缩进继承） |
-| 一级标题（一、二…） | 黑体 11pt 居中，样式"一级标题"（段前12pt 段后7pt，行距20pt固定） |
-| 二级标题（（一）（二）…） | 楷体 10.5pt 左对齐，样式"二级标题" |
-| 三级标题（1. 2. …） | 宋体 10.5pt 左对齐，样式"三级标题" |
-| 正文 | 宋体(eastAsia)+Times New Roman 10.5pt，两端对齐，首行缩进 266700EMU(≈2字符)，行距 254000EMU(20pt固定)，样式"正文1" |
-| 脚注 | Word 真实脚注（页面底部自动编号），字号9pt |
+| 纸张与页边距 |  |
+| 大标题字体、字号、对齐 |  |
+| 作者、单位行 |  |
+| 摘要、关键词（标签字体 / 内容字体） |  |
+| 各级标题字体、字号、段前段后、行距 |  |
+| 正文字体、字号、首行缩进、行距 |  |
+| 脚注字体、字号、编号方式 |  |
 
-run 字体设置要点：`run.font.name = 西文字体` + `rPr.rFonts.set(qn('w:eastAsia'), 中文字体)` + `run.font.size = Pt(n)`；eastAsia 不设则中文回退默认字体。
+设置 run 字体时要同时设置西文与东亚字体：`run.font.name = 西文字体`，并对 `rPr.rFonts` 设置 `w:eastAsia`；只设其一会让中文回退为默认字体。
 
-## md → docx 段落映射
+## python-docx 的脚注限制
 
-- `# ` 标题 → 大标题（20pt 黑体居中）；`## ` → 一级标题；`### ` → 二级标题；`#### ` → 三级标题
-- `摘　要：`/`关键词：` 行 → 双 run（黑体标签 + 楷体内容）特殊处理
-- 文末 `## 脚注` 列表（`[N] 内容`）→ 不输出为正文，转为真脚注内容；正文 `[N]` 标记 → footnoteReference
-- `---` 分隔线、空行跳过
+- python-docx 不解析 footnotes 部件，不要试图直接用它操作脚注。
+- **两步法**：
+  1. 用 python-docx 写正文，在脚注位置插入唯一占位符（如 `〔FNREF_1〕`，全角括号避免与正文冲突）；
+  2. 用 zipfile 重新打包：把 `word/document.xml` 中的占位符替换为 `footnoteReference` run，并用 lxml 重建 `word/footnotes.xml`（保留 `id="-1"` separator 与 `id="0"` continuationSeparator，再追加各条脚注）。
+- 模板没有 `word/footnotes.xml` 时，脚本会补齐 footnotes 关系与 `[Content_Types].xml` 声明。
+- 重新打包时读出所有条目，只替换 document.xml 与 footnotes.xml，其余原样写回。
+- lxml 不能直接设置 `xml:space` 属性名，要用 `{http://www.w3.org/XML/1998/namespace}space`。
 
-## 验证（生成后必跑）
+## Markdown 输入约定
 
-1. `Document(DST)` 重新打开无异常；
-2. zipfile 读 document.xml：`footnoteReference` 计数 == 脚注条数，ID 集合 == range(1, N+1) 无缺失无重复；
-3. footnotes.xml 条目数 == 引用数（-1/0 系统脚注除外）；
-4. 抽样段落 style/字体/字号/对齐；抽查脚注 [1]、[N] 内容与 md 一致；
-5. 交付：文件路径（MEDIA:）+ 格式说明表（页面/字体/标题层级/脚注），提醒用户打开通读校对。
+- `#` 大标题；一级、二级、三级标题既可用 `##`/`###`/`####`，也可直接写“一、”“（一）”“1. ”；
+- `摘　要：`、`关键词：` 行按“标签 + 内容”双字体处理；
+- 正文脚注标记写作 `[N]` 或 `[脚注N]`；文末 `## 脚注` 之后逐行写 `[N] 脚注内容`；
+- `---` 分隔线与空行忽略。
 
-## 与相邻技能分工
+生成前统一脚注标记（删除空 `[]`，合并重复标记），并确认编号连续。
 
-- chinese-law-paper-writing（user-owned，勿编辑）：五问/反说/逻辑链纪律、期刊适配、引注纪律总纲；
-- legal-paper-argumentation（user-owned，勿编辑）：推理链与统计口径执行细则；
-- 本技能：docx 生产执行细则（真脚注注入、样稿格式复刻）；
-- bundled `docx` skill（protected）：通用 docx 操作（合并run/审阅/注释/validate.py）——本技能的两步法脚注注入技术如被该技能采纳可迁移，未采纳前以本技能为准。
+## 用法
+
+```bash
+python3 -X utf8 scripts/md2docx_footnotes.py --src 样稿.docx --md 工作稿.md --dst 输出.docx
+```
+
+`scripts/` 以本技能目录为基准解析。修改标注版追加 `--red-para-start 段落开头文字`（可重复）、`--red-footnote 脚注号`（可重复），或 `--red-split-mark` 与 `--red-footnote-id` 标红某条脚注中追加的部分。
+
+### 修改标注版
+
+用户需要审阅 AI 改动时，同时生成两份文件：干净版（投稿用）与修改标注版（新增或改写的段落整段红色、新增脚注整条红色、追加文献部分红色）。交付时附修改清单：改了什么、为什么、哪些细微调整（标点、删除待核标记）未标红。插入内容必须独立成段，否则按段首判定的标红会失效。
+
+## 生成后必须验证
+
+1. 用 python-docx 重新打开输出文件，无异常；
+2. `document.xml` 中 `footnoteReference` 数量等于 Markdown 脚注条数，ID 为 1..N、无缺失无重复；
+3. `footnotes.xml` 条目数等于引用数（不计 -1、0 两个系统脚注）；
+4. 抽查若干段落的样式、字体、字号、对齐，抽查第 1 条与最后一条脚注内容；
+5. 修改标注版核对红色 run 的数量与修改清单一致；
+6. 交付时给出文件路径和格式说明表，提醒用户在 Word 中通读校对。
+
+## 交付前检查
+
+- 摘要字数、关键词数量、标题层级、脚注格式符合 [期刊适配](journal-adaptation.md) 已核验的要求；
+- 文献类脚注带页码，案例类脚注带案号或正式来源；
+- 标点统一，无英文标点残留；如观察卡要求减少破折号，只改文内用法，保留文献原题名中的破折号；
+- 脚注标记与脚注列表一一对应；
+- 结语能回答问题提出。

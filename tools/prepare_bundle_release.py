@@ -175,7 +175,7 @@ def _normalize_release_input(root: Path, release: dict) -> dict:
 
     compatibility = release.get("compatibility")
     if compatibility is None:
-        compatibility = {"hermes": True, "codex": True, "python": ">=3.11"}
+        compatibility = {"hermes": True, "claude_code": True, "codex": True, "python": ">=3.9"}
     elif not isinstance(compatibility, dict):
         raise ValueError("compatibility must be a mapping")
 
@@ -226,11 +226,10 @@ def _release_from_existing_manifest(existing: dict) -> dict:
 
 
 def _write_json(path: Path, data: dict) -> None:
-    path.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    # open(..., newline=) instead of Path.write_text(newline=): the latter
+    # needs Python 3.10, and the bundle supports Python 3.9+.
+    with path.open("w", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 
 
 def _write_locks(root: Path, release: dict) -> None:

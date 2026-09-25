@@ -9,9 +9,9 @@
 3. `python3 insert_norm_sections.py /path/to/wiki`             # 正式执行
 
 也可用 `WIKI_PATH`/`DRY_RUN=1` 兼容旧调用；写入前会备份到 wiki 内的
-`.maintenance/norm-reference-2026-08/before/`，且不会覆盖已有备份。
+`.maintenance/norm-reference/before/`，且不会覆盖已有备份。
 
-规则（2026-08批次2实测固化）：
+规则：
 - 插在 '## 与比较页的关联' 之前；该anchor不存在时回退 '## 相关概念'；
 - 格式：## 规范依据\\n\\n- [[法规范页完整文件名]]——说明（30-80字）\\n；
 - 说明30-80字（CJK计数）；链接必须真实存在于 entities/法规范/ 下（os.walk）；
@@ -26,10 +26,10 @@ import tempfile
 WIKI = NORM_ROOT = BACKUP_DIR = None
 
 PLAN = {
-    # 示例（batch2实测）：
-    # "concepts/上下班途中合理时间的认定边界.md": [
-    #     ("工伤保险条例（2010修订）", "第十四条第六项确立“上下班途中”与“非本人主要责任”认定要件，系“合理时间”问题的规范起点。"),
-    #     ("司法解释-审理工伤保险行政案件规定（法释2014-9号）", "第六条以“合理时间”“合理路线”界定“上下班途中”的四种情形，为“合理时间”解释提供权威基准。"),
+    # 示例：
+    # "concepts/某概念.md": [
+    #     ("某法（2017修正）", "第十四条确立本概念的构成要件，是判断该问题的规范起点，说明30-80字。"),
+    #     ("司法解释-某某规定", "第六条列举本概念的四种典型情形，为解释提供权威基准，说明30-80字。"),
     # ],
 }
 
@@ -52,7 +52,7 @@ def configure_paths(wiki, backup_dir=None):
     if not os.path.isdir(WIKI) or not os.path.isdir(NORM_ROOT):
         raise ValueError("wiki must contain entities/法规范")
     BACKUP_DIR = os.path.abspath(os.path.expanduser(backup_dir)) if backup_dir else os.path.join(
-        WIKI, ".maintenance", "norm-reference-2026-08", "before"
+        WIKI, ".maintenance", "norm-reference", "before"
     )
     if os.path.commonpath([BACKUP_DIR, NORM_ROOT]) == NORM_ROOT:
         raise ValueError("backup directory must not be inside entities/法规范")

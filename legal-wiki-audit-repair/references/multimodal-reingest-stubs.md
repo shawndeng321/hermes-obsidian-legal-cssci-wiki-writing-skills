@@ -13,12 +13,12 @@ to real content with this workflow.
 ## 1. Identify stubs
 
 Stubs are born from:
-- **Bulk arXiv bibliography downloads** ([multimodal-bulk-refs.md](../../legal-research-wiki/references/multimodal-bulk-refs.md)): a web/research tool on
+- **Bulk arXiv bibliography downloads** (`legal-research-wiki` 技能的 `references/multimodal-bulk-refs.md`): a web/research tool on
   `/pdf/` URLs returns LLM-summarized content that's often truncated. The raw note gets
   frontmatter + `sha256` but an empty or placeholder body.
 - **Failed extractions**: `/abs/` returns metadata only; `/html/` often 404s.
 
-Lint detection: `search_files` for files with `sha256` but fewer than ~5 non-frontmatter
+Lint detection: search (e.g. `grep -rl`) for files with `sha256` but fewer than ~5 non-frontmatter
 body lines, plus the `*Content extracted via*` placeholder string.
 
 ## 2. Extract arXiv IDs from filenames

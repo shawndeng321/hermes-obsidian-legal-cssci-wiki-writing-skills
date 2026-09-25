@@ -14,19 +14,30 @@ SKILLS = (
     "legal-wiki-audit-repair",
 )
 ALLOWED_FRONTMATTER_KEYS = {"name", "description", "license", "metadata"}
-EXPECTED_DESCRIPTIONS = {
-    "chinese-law-paper-writing":
-        "Use when planning, writing or checking Chinese legal papers.",
-    "legal-research-wiki":
-        "Use when building a Chinese legal research wiki.",
-    "legal-wiki-audit-repair":
-        "Use when auditing/repairing a wiki or updating its Bundle.",
+# Descriptions drive automatic skill selection in Claude Code and Codex, so
+# they carry Chinese trigger phrases. Codex allows up to 1024 characters; we
+# keep them short enough (<= 300) to stay within Hermes' routing budget.
+DESCRIPTION_MAX_LENGTH = 300
+DESCRIPTION_TRIGGERS = {
+    "chinese-law-paper-writing": ("CSSCI", "改稿", "期刊适配", "Not for"),
+    "legal-research-wiki": ("建库", "摄入", "知识库查询", "legal-wiki-audit-repair"),
+    "legal-wiki-audit-repair": ("updating its Bundle", "全库体检", "每日检修", "检查法学技能更新"),
 }
 EXPECTED_VERSIONS = {
-    "chinese-law-paper-writing": "5.2.0",
-    "legal-research-wiki": "4.2.0",
-    "legal-wiki-audit-repair": "4.3.0",
+    "chinese-law-paper-writing": "6.0.0",
+    "legal-research-wiki": "5.0.0",
+    "legal-wiki-audit-repair": "5.0.0",
 }
+PROJECT_SPECIFIC_TERMS = (
+    "工伤",
+    "121案",
+    "政治与法律",
+    "检例205",
+    "王东伟",
+    "Desktop/法学wiki",
+    "/Users/",
+    "~/.hermes/scripts",
+)
 MULTIMODAL_FILES = (
     "chinese-law-paper-writing/references/multimodal-citation-format.md",
     "legal-research-wiki/references/multimodal-audio-ingest.md",
@@ -90,12 +101,19 @@ class SkillCompatibilityTests(unittest.TestCase):
                     set(frontmatter) - ALLOWED_FRONTMATTER_KEYS,
                     set(),
                 )
-                self.assertEqual(
-                    frontmatter["description"],
-                    EXPECTED_DESCRIPTIONS[skill_name],
-                )
-                self.assertLessEqual(len(frontmatter["description"]), 60)
-                self.assertTrue(frontmatter["description"].startswith("Use when"))
+                description = frontmatter["description"]
+                self.assertLessEqual(len(description), DESCRIPTION_MAX_LENGTH)
+                self.assertTrue(description.startswith("Use when"))
+                # Hermes truncates descriptions in its system-prompt skill index
+                # to 57 characters + "..." (agent/skill_utils.py,
+                # SKILL_PROMPT_DESC_LIMIT = 60), so the first sentence must be
+                # a complete summary on its own.
+                first_sentence = description.split(". ", 1)[0] + "."
+                self.assertLessEqual(len(first_sentence), 57)
+                self.assertIn("Chinese legal", first_sentence)
+                self.assertRegex(description, r"[\u4e00-\u9fff]")
+                for trigger in DESCRIPTION_TRIGGERS[skill_name]:
+                    self.assertIn(trigger, description)
                 self.assertTrue(frontmatter["description"].endswith("."))
                 self.assertEqual(frontmatter["license"], "MIT")
                 metadata = frontmatter["metadata"]
@@ -144,7 +162,18 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertIn("--yes", root_readme)
         self.assertIn("$hermesHome", root_readme)
         self.assertIn("复制完整技能目录", root_readme)
-        self.assertIn("## 2026-08 更新内容", root_readme)
+        self.assertIn("## 2026-09 更新内容", root_readme)
+        self.assertIn(
+            "claude plugin marketplace add "
+            "shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills",
+            root_readme,
+        )
+        self.assertIn(
+            "claude plugin install legal-academic-research@legal-academic-research",
+            root_readme,
+        )
+        self.assertIn(".claude/skills", root_readme)
+        self.assertIn(".agents/skills", root_readme)
         self.assertIn("git clone", root_readme)
         self.assertIn("#安装", root_readme)
         for phrase in (
@@ -168,6 +197,122 @@ class SkillCompatibilityTests(unittest.TestCase):
             self.assertIn("../README.md#自动更新", skill_readme)
             self.assertIn("--yes", skill_readme)
 
+    def test_claude_code_plugin_manifests_expose_all_skills(self) -> None:
+        import json
+
+        plugin = json.loads(
+            (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )
+        marketplace = json.loads(
+            (ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(plugin["name"], "legal-academic-research")
+        self.assertEqual(
+            sorted(plugin["skills"]), sorted(f"./{name}" for name in SKILLS)
+        )
+        release = json.loads((ROOT / "bundle-release.json").read_text(encoding="utf-8"))
+        self.assertEqual(plugin["version"], release["bundle_version"])
+        self.assertEqual(marketplace["name"], "legal-academic-research")
+        entries = {entry["name"]: entry for entry in marketplace["plugins"]}
+        self.assertEqual(entries["legal-academic-research"]["source"], "./")
+        self.assertIn("owner", marketplace)
+
+    def test_skills_are_host_neutral_and_project_neutral(self) -> None:
+        for skill_name in SKILLS:
+            with self.subTest(skill=skill_name):
+                body = (ROOT / skill_name / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("## 运行环境（Hermes / Claude Code / Codex 通用）", body)
+                self.assertIn("update_channel", body)
+                self.assertIn("python3 -X utf8 scripts/legal_skills_update.py check --json", body)
+                self.assertNotIn("`python -X utf8 scripts/legal_skills_update.py", body)
+                self.assertIn("claude plugin update", body)
+                self.assertIn("Claude Code 插件安装时跳过预检", body)
+                self.assertIn("/plugins/cache/", body)
+            for path in sorted((ROOT / skill_name).rglob("*")):
+                if path.suffix not in {".md", ".py", ".yaml"}:
+                    continue
+                relative = path.relative_to(ROOT).as_posix()
+                if "/evals/" in relative or relative.endswith(
+                    ("CHANGELOG.md", "legal_skills_update.py")
+                ):
+                    continue
+                text = path.read_text(encoding="utf-8")
+                for term in PROJECT_SPECIFIC_TERMS:
+                    with self.subTest(path=relative, term=term):
+                        self.assertNotIn(term, text)
+
+    def test_wiki_page_templates_are_complete_and_parse(self) -> None:
+        templates = ROOT / "legal-research-wiki" / "assets" / "templates"
+        schema = (templates / "SCHEMA.md").read_text(encoding="utf-8")
+        types = set(
+            re.search(r"^type: (.+?)\s*$", schema, re.M).group(1).replace(" ", "").split("|")
+        )
+        required = {
+            "title", "created", "updated", "type", "tags", "sources",
+            "source_confidence", "analysis_status",
+        }
+        expected = {
+            "case.md": "case", "paper.md": "paper", "concept.md": "concept",
+            "comparison.md": "comparison", "norm.md": "norm", "norm-entity.md": "norm",
+            "norm-version.md": "norm", "norm-clause-version.md": "norm",
+            "research-design.md": "research-design",
+            "claim-evidence-matrix.md": "research-design",
+            "journal-style-card.md": "methodology", "model-article.md": "model-article",
+            "anchor-draft.md": "draft", "moc.md": "moc", "handoff.md": "handoff",
+            "writing-outline.md": "query",
+            "wiki-design-brief.md": "research-design",
+        }
+        for name in ("SCHEMA.md", "index.md", "log.md", "README.md"):
+            self.assertTrue((templates / name).exists(), name)
+        for name, page_type in expected.items():
+            with self.subTest(template=name):
+                frontmatter, body = load_skill(templates / name)
+                self.assertEqual(frontmatter["type"], page_type)
+                self.assertIn(page_type, types)
+                self.assertEqual(required - set(frontmatter), set())
+                self.assertTrue(body.strip())
+        brief = (templates / "wiki-design-brief.md").read_text(encoding="utf-8")
+        for group in ("## A 目的", "## B 研究问题", "## C 未来怎么用", "## 加深模式", "## 落地决定"):
+            self.assertIn(group, brief)
+        skill = (ROOT / "legal-research-wiki" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("references/wiki-design-interview.md", skill)
+        interview = (
+            ROOT / "legal-research-wiki" / "references" / "wiki-design-interview.md"
+        ).read_text(encoding="utf-8")
+        for group in "ABCDEFGHIJ":
+            self.assertIn(f"### {group} ", interview)
+        self.assertIn("加深模式", interview)
+        readme = (templates / "README.md").read_text(encoding="utf-8")
+        for name in expected:
+            self.assertIn(f"`{name}`", readme)
+
+    def test_cross_skill_references_do_not_assume_a_shared_directory(self) -> None:
+        cross_link = re.compile(
+            r"\]\(\.\./\.\./(?:" + "|".join(SKILLS) + r")/"
+        )
+        for skill_name in SKILLS:
+            body = (ROOT / skill_name / "SKILL.md").read_text(encoding="utf-8")
+            with self.subTest(skill=skill_name):
+                self.assertIn("## 配套技能", body)
+                self.assertIn("未安装时", body)
+                self.assertIn("按**技能名**找到该技能", body)
+            for path in (ROOT / skill_name).rglob("*.md"):
+                with self.subTest(path=path.relative_to(ROOT).as_posix()):
+                    self.assertIsNone(cross_link.search(path.read_text(encoding="utf-8")))
+
+    def test_every_skill_has_behavioral_pressure_tests(self) -> None:
+        for skill_name in SKILLS:
+            with self.subTest(skill=skill_name):
+                text = (ROOT / skill_name / "evals" / "pressure-tests.md").read_text(
+                    encoding="utf-8"
+                )
+                scenarios = re.findall(r"^#{2,3} \d+\. ", text, re.M)
+                self.assertGreaterEqual(len(scenarios), 9)
+                self.assertGreaterEqual(text.count("**必须**"), len(scenarios))
+        for skill_name in ("legal-research-wiki", "legal-wiki-audit-repair"):
+            text = (ROOT / skill_name / "evals" / "pressure-tests.md").read_text(encoding="utf-8")
+            self.assertGreaterEqual(text.count("**不得**"), 15)
+
     def test_documentation_has_no_known_stale_metadata_or_placeholders(self) -> None:
         readmes = [ROOT / "README.md"]
         readmes.extend(ROOT / skill_name / "README.md" for skill_name in SKILLS)
@@ -183,7 +328,7 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertIn("SKILL.md", root_readme)
         self.assertIn("agents/openai.yaml", root_readme)
         self.assertIn("X.Y.Z", root_readme)
-        self.assertIn("Hermes 与 Codex", root_readme)
+        self.assertIn("Hermes、Claude Code 与 Codex", root_readme)
         self.assertNotIn("兼容性测试 8/8", root_readme)
         self.assertNotIn("脚本安全测试 9/9", root_readme)
         self.assertIn("兼容性、脚本安全与 Bundle 更新器测试", root_readme)

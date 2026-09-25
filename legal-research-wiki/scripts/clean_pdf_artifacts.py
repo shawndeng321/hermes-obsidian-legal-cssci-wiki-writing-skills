@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-Clean PDF extraction artifacts from wiki entity pages.
+Clean PDF extraction artifacts from paper (literature) wiki pages.
 
 Usage:
-    python3 clean_pdf_artifacts.py /path/to/wiki/entities --dry-run
-    python3 clean_pdf_artifacts.py /path/to/wiki/entities --backup-dir /path/to/backup
+    python3 clean_pdf_artifacts.py /path/to/wiki/entities/引用文献 --dry-run
+    python3 clean_pdf_artifacts.py /path/to/wiki/entities/引用文献 --backup-dir /path/to/backup
     python3 clean_pdf_artifacts.py /path/to/wiki/entities --backup-dir /path/to/backup file1.md file2.md ...
 
-If no specific files are given, recursively scans all .md files below the directory.
-Dry-run is read-only. A backup directory is required before any in-place write.
+Only four paper-page sections are touched: ## 摘要, ## 关键词, ## 核心论点, ## 主要结论.
+Frontmatter and every other section (for example case pages' 【裁判要旨】 labels)
+are left exactly as they are. Dry-run is read-only. A backup directory is
+required before any in-place write.
 """
 import argparse
 import os
@@ -18,60 +20,63 @@ import sys
 import tempfile
 from pathlib import Path
 
+PAPER_SECTIONS = ("摘要", "关键词", "核心论点", "主要结论")
+SECTION_RE = re.compile(
+    r"^## (" + "|".join(PAPER_SECTIONS) + r")[ \t]*\n(.*?)(?=^## |\Z)",
+    re.M | re.S,
+)
+# PDF layout labels such as 【摘要】/［关键词］ that leak into extracted text.
+LABEL_RE = re.compile(r"[【［]\s*(?:摘\s*要|内容提要|提\s*要|关\s*键\s*词|Abstract|Key\s*words?)\s*[】］][:：]?", re.I)
+# Footnote markers rendered as ［1］, ［12］ inside running text.
+FOOTNOTE_MARK_RE = re.compile(r"［\s*\d{1,3}\s*］")
+
+
+def _join_broken_lines(text):
+    """Join single line breaks inside paragraphs, keep blank-line paragraph breaks."""
+    return re.sub(r"([^\n])\n([^\n])", r"\1\2", text)
+
+
+def _clean_section(name, body):
+    trailing = body[len(body.rstrip("\n")):]
+    content = body.rstrip("\n")
+    content = LABEL_RE.sub("", content)
+    content = FOOTNOTE_MARK_RE.sub("", content)
+    content = content.replace("］", "").replace("［", "")
+    if name == "关键词":
+        content = content.replace("【", "").replace("】", "")
+        lead = content[: len(content) - len(content.lstrip("\n"))]
+        content = lead + content.strip().replace("\n", "").strip(";；")
+    elif name in ("摘要", "主要结论"):
+        content = _join_broken_lines(content)
+    else:  # 核心论点
+        content = "\n\n".join(_join_broken_lines(p) for p in content.split("\n\n"))
+    return content + trailing
+
+
 def clean_pdf_artifacts(text):
-    """Remove PDF extraction artifacts from wiki page content."""
-    
-    # 1. Remove full-width bracket artifacts
-    text = text.replace('］', '').replace('［', '')
-    text = text.replace('】', '').replace('【', '')
-    
-    # 2. Fix keywords section - remove newlines, normalize
-    kw_pattern = r'(## 关键词\n\n)(.*?)(\n\n##)'
-    kw_match = re.search(kw_pattern, text, re.DOTALL)
-    if kw_match:
-        kw_content = kw_match.group(2).replace('\n', '').strip().strip(';；')
-        text = text[:kw_match.start()] + kw_match.group(1) + kw_content + kw_match.group(3) + text[kw_match.end():]
-    
-    # 3. Fix abstract - join broken lines (preserve paragraph breaks)
-    for section_name in ['摘要', '主要结论']:
-        pattern = rf'(## {section_name}\n\n)(.*?)(\n\n##)'
-        match = re.search(pattern, text, re.DOTALL)
-        if match:
-            content = match.group(2)
-            content = re.sub(r'([^\n])\n([^\n])', r'\1\2', content)
-            text = text[:match.start()] + match.group(1) + content + match.group(3) + text[match.end():]
-    
-    # 4. Fix key arguments - join lines within paragraphs
-    args_pattern = r'(## 核心论点\n\n)(.*?)(\n\n##)'
-    args_match = re.search(args_pattern, text, re.DOTALL)
-    if args_match:
-        args_content = args_match.group(2)
-        paragraphs = args_content.split('\n\n')
-        fixed = [re.sub(r'([^\n])\n([^\n])', r'\1\2', p) for p in paragraphs]
-        args_content = '\n\n'.join(fixed)
-        text = text[:args_match.start()] + args_match.group(1) + args_content + args_match.group(3) + text[args_match.end():]
-    
-    return text
+    """Remove PDF extraction artifacts from the four paper-page sections only."""
+
+    def replace(match):
+        header_end = match.start(2) - match.start(0)
+        return match.group(0)[:header_end] + _clean_section(match.group(1), match.group(2))
+
+    return SECTION_RE.sub(replace, text)
 
 
 def scan_for_issues(filepath):
-    """Check a single file for PDF artifacts."""
+    """Check the four paper-page sections of a single file for PDF artifacts."""
     content = Path(filepath).read_text(encoding="utf-8")
     issues = []
-    if '］' in content or '［' in content: issues.append("PDF方括号残留")
-    if 'Vo1.' in content: issues.append("OCR错误(Vo1.)")
-    
-    kw_match = re.search(r'## 关键词\n\n(.*?)\n\n##', content, re.DOTALL)
-    if kw_match:
-        kw = kw_match.group(1).strip()
-        if '\n' in kw or '］' in kw or '【' in kw: issues.append("关键词格式异常")
-    
-    for section in ['摘要', '主要结论']:
-        pattern = rf'## {section}\n\n(.*?)\n\n##'
-        m = re.search(pattern, content, re.DOTALL)
-        if m and re.search(r'[，；。]\n[^\n]', m.group(1)):
-            issues.append(f"{section}PDF换行残留")
-    
+    for match in SECTION_RE.finditer(content):
+        name, body = match.group(1), match.group(2).strip("\n")
+        if LABEL_RE.search(body) or FOOTNOTE_MARK_RE.search(body) or "］" in body or "［" in body:
+            issues.append(f"{name}PDF方括号残留")
+        if name == "关键词" and ("\n" in body or "【" in body or "】" in body):
+            issues.append("关键词格式异常")
+        if name in ("摘要", "主要结论") and re.search(r"[，；。、]\n[^\n]", body):
+            issues.append(f"{name}PDF换行残留")
+    if "Vo1." in content:
+        issues.append("OCR错误(Vo1.)（需人工核对，脚本不自动改）")
     return issues
 
 

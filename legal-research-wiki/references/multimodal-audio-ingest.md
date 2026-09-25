@@ -13,10 +13,10 @@ defines that flow.
 
 ## 宿主能力检查
 
-Hermes 与 Codex 的转录工具、Python 环境和模型配置并不相同，不能假定 `transcribe_audio` 或 `faster-whisper` 已安装。摄入前先确认当前宿主实际暴露的音频转录能力：
+不同宿主（Hermes、Claude Code、Codex 等）的转录工具、Python 环境和模型配置并不相同，不能假定 `transcribe_audio` 或 `faster-whisper` 已安装。摄入前先确认当前宿主实际暴露的音频转录能力：
 
 - 某些 Hermes 部署可能提供 `tools.transcription_tools.transcribe_audio`；只有导入检查成功后才能使用。
-- Codex 或其他宿主可使用当前已提供的转录工具，或在用户授权安装依赖后运行 `faster-whisper`。
+- Claude Code、Codex 或其他宿主可使用当前已提供的转录工具，或在用户授权安装依赖后运行 `faster-whisper`。
 - 如果没有可用转录能力，保留原始音频并标记“待转录”，不要伪造逐字稿或声称摄入完成。
 
 ## Engine options
@@ -42,12 +42,12 @@ Once archived under its final name, this is the immutable Layer-1 source — nev
 
 ### 2. Transcribe with an available host capability
 
-If the current Hermes deployment exposes `transcribe_audio()`, it can honor the configured provider/model/language:
+If the host is a Hermes deployment that exposes `transcribe_audio()`, it can honor the configured provider/model/language:
 
 ```python
 import os
 from tools.transcription_tools import transcribe_audio
-# WIKI_PATH = your wiki root (set in ~/.hermes/.env), e.g. D:\wiki on Windows
+# WIKI_PATH = your wiki root (environment variable), e.g. D:\wiki on Windows or ~/wiki on macOS/Linux
 audio = os.path.join(os.environ["WIKI_PATH"], "raw", "transcripts", "<topic>.m4a")
 r = transcribe_audio(audio)
 assert r["success"], r.get("error")
@@ -100,7 +100,7 @@ Check existing pages, create/update entity & concept pages, cross-link (≥2 `[[
 update `index.md` + `log.md`.
 - Cite the source in page frontmatter: `sources: [raw/transcripts/<topic>.md]`.
 - Provenance markers on synthesized claims: `^[raw/transcripts/<topic>.md]` (per
-  [multimodal-citation-format.md](../../chinese-law-paper-writing/references/multimodal-citation-format.md) — the raw-note path is the traceable anchor).
+  `chinese-law-paper-writing` 技能的 `references/multimodal-citation-format.md` — the raw-note path is the traceable anchor).
 
 ## Discovery (folder-drop path)
 An audio file is binary and can't carry frontmatter. The uningested signal is:

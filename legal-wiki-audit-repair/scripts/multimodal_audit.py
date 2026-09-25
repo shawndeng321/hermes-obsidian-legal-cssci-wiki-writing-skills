@@ -6,7 +6,7 @@
 
 Usage:
   1. Set WIKI_PATH in the environment or pass the Wiki root as first argument.
-  2. Run via `python scripts/multimodal_audit.py <WIKI_PATH>`.
+  2. Run via `python3 scripts/multimodal_audit.py <WIKI_PATH>` (Windows: `py`).
   3. Prints a structured report to stdout.
 
 Checks:

@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CLEAN_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "clean_pdf_artifacts.py"
 EXTRACT_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "batch_extract_papers.py"
+CHECK_LINKS_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "check_wikilinks.py"
 SYNC_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "sync_paper_case_links.py"
 INSERT_NORM_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "insert_norm_sections.py"
 DOCX_SCRIPT = ROOT / "chinese-law-paper-writing" / "scripts" / "md2docx_footnotes.py"
@@ -54,7 +55,7 @@ class ScriptSafetyTests(unittest.TestCase):
             page = root / "paper.md"
             outside = Path(tmp) / "outside.md"
             root.mkdir()
-            content = "# Paper\n\n［artifact］\n"
+            content = "# Paper\n\n## 摘要\n\n［摘要］正文。\n"
             page.write_text(content, encoding="utf-8")
             outside.write_text(content, encoding="utf-8")
 
@@ -72,14 +73,105 @@ class ScriptSafetyTests(unittest.TestCase):
             page = root / "paper.md"
             backup = Path(tmp) / "backup"
             root.mkdir()
-            page.write_text("# Paper\n\n［artifact］\n", encoding="utf-8")
+            page.write_text("# Paper\n\n## 摘要\n\n［摘要］正文［1］。\n", encoding="utf-8")
 
             result = self.run_script(CLEAN_SCRIPT, root, "--backup-dir", backup)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue((backup / "paper.md").exists())
-            self.assertIn("［artifact］", (backup / "paper.md").read_text(encoding="utf-8"))
-            self.assertNotIn("［artifact］", page.read_text(encoding="utf-8"))
+            self.assertIn("［摘要］", (backup / "paper.md").read_text(encoding="utf-8"))
+            self.assertEqual(
+                page.read_text(encoding="utf-8"), "# Paper\n\n## 摘要\n\n正文。\n"
+            )
+
+    def test_clean_pdf_only_touches_paper_sections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "entities"
+            case = root / "案例" / "案例1-2016-示例案.md"
+            paper = root / "引用文献" / "论文.md"
+            case.parent.mkdir(parents=True)
+            paper.parent.mkdir(parents=True)
+            case_text = (
+                "---\ntitle: 示例案\n---\n# 示例案\n\n## 基本案情\n\n【基本案情】某甲受伤。\n\n"
+                "## 裁判要旨\n\n【裁判要旨】援引《某法》第十条［1］。\n"
+            )
+            case.write_text(case_text, encoding="utf-8")
+            paper.write_text(
+                "# 论文\n\n## 摘要\n\n［摘要］本文讨论，\n认为如此［3］。\n\n"
+                "## 关键词\n\n］行政确认；\n程序；［\n\n## 核心论点\n\n1. 第一点，\n继续。\n\n"
+                "## 主要结论\n\n结论一，\n结论二。\n\n## 相关概念\n\n- 【注】保留\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(CLEAN_SCRIPT, root, "--backup-dir", Path(tmp) / "bak")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(case.read_text(encoding="utf-8"), case_text)
+            self.assertEqual(
+                paper.read_text(encoding="utf-8"),
+                "# 论文\n\n## 摘要\n\n本文讨论，认为如此。\n\n## 关键词\n\n行政确认；程序\n\n"
+                "## 核心论点\n\n1. 第一点，继续。\n\n## 主要结论\n\n结论一，结论二。\n\n"
+                "## 相关概念\n\n- 【注】保留\n",
+            )
+
+    def test_check_wikilinks_follows_obsidian_resolution_rules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wiki = Path(tmp)
+            (wiki / "entities" / "案例").mkdir(parents=True)
+            (wiki / ".maintenance" / "before").mkdir(parents=True)
+            (wiki / "raw" / "assets").mkdir(parents=True)
+            (wiki / "raw" / "assets" / "图1.png").write_bytes(b"png")
+            (wiki / "entities" / "案例" / "案例1-2016-示例案.md").write_text("# 甲\n", encoding="utf-8")
+            (wiki / ".maintenance" / "before" / "已删除页.md").write_text("# 备份\n", encoding="utf-8")
+            (wiki / "SCHEMA.md").write_text("示例 [[wikilinks]]\n", encoding="utf-8")
+            (wiki / "entities" / "测试页.md").write_text(
+                "| 案例 | 说明 |\n|---|---|\n| [[案例1-2016-示例案\\|示例案]] | 表格别名 |\n"
+                "| [[案例1-2016-示例案&#124;示例案]] | 错误写法 |\n\n"
+                "[[案例1-2016-示例案|示例案]] [[案例1-2016-示例案.md]] [[案例1-2016-示例案#裁判要旨]] "
+                "[[entities/案例/案例1-2016-示例案]] ![[图1.png]] [[#本页标题]]\n"
+                "[[不存在的页]] [[已删除页]]\n截断 [[案例1-2016-示例案## 相关概念\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_script(CHECK_LINKS_SCRIPT, wiki, "--strict")
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("Dead links: 2", result.stdout)
+            self.assertIn("Malformed: 3", result.stdout)
+            self.assertIn("-> [[不存在的页]]", result.stdout)
+            self.assertIn("-> [[已删除页]]", result.stdout)
+            self.assertNotIn("DEAD       entities/测试页.md:3", result.stdout)
+            self.assertIn("FALSE      SCHEMA.md:1", result.stdout)
+
+            (wiki / "entities" / "测试页.md").write_text(
+                "[[案例1-2016-示例案\\|示例案]]\n", encoding="utf-8"
+            )
+            clean = self.run_script(CHECK_LINKS_SCRIPT, wiki, "--strict")
+            self.assertEqual(clean.returncode, 0, clean.stdout + clean.stderr)
+
+    def test_check_wikilinks_tolerates_drafts_and_maintenance_documents(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wiki = Path(tmp)
+            (wiki / "entities").mkdir()
+            (wiki / "drafts").mkdir()
+            (wiki / "entities" / "甲.md").write_text("# 甲\n", encoding="utf-8")
+            (wiki / "drafts" / "4.3初稿.md").write_text(
+                "正文[[脚注1]]、[[脚注2]]；旧链接 [[旧页面]]\n", encoding="utf-8"
+            )
+            (wiki / "知识库排查修复流程与整改台账.md").write_text(
+                "示例 [[目标&#124;别名]] [[不存在]]\n", encoding="utf-8"
+            )
+            (wiki / "log-2025.md").write_text("[[旧]]\n", encoding="utf-8")
+            (wiki / "entities" / "乙.md").write_text("[[甲]]\n", encoding="utf-8")
+
+            result = self.run_script(CHECK_LINKS_SCRIPT, wiki, "--strict")
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("Dead links: 0", result.stdout)
+            self.assertIn("Malformed: 0", result.stdout)
+            self.assertIn("Tolerated (drafts/): 3", result.stdout)
+            self.assertIn("2 footnote markers", result.stdout)
+            self.assertIn("False positives (SCHEMA/log/台账): 2", result.stdout)
 
     def test_batch_extract_dry_run_does_not_clobber_existing_text(self):
         with tempfile.TemporaryDirectory() as tmp:

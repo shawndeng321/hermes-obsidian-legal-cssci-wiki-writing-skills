@@ -1,33 +1,27 @@
 # -*- coding: utf-8 -*-
 """
-md → docx（法学论文交付）通用脚本
-以已有 docx（如3.0初稿）为模板继承全部样式/页面设置，写入新稿正文，
+md → docx（法学论文投稿稿）通用脚本
+以样稿或期刊模板 docx 为模板继承样式与页面设置，写入新稿正文，
 并用 zipfile 注入 Word 真实脚注（python-docx 原生不支持 footnotes part）。
 
-支持两种交付模式（2026-08 实测）：
-  A. 干净版：RED_* 配置留空即可，输出投稿用 docx；
-  B. 修改标注版：配置 RED_PARA_STARTS / RED_FOOTNOTES / RED_SPLIT_MARK，
-     新增/修改内容用红色字体（正文修改段整段红、新增脚注整条红、
-     追加文献部分红），供用户审稿快速定位 AI 改动。
+两种交付模式：
+  A. 干净版：不传 --red-* 参数，输出投稿用 docx；
+  B. 修改标注版：传 --red-para-start / --red-footnote / --red-split-mark，
+     新增或修改内容用红色字体，便于作者快速定位 AI 改动。
 
 用法：
-  1. 直接传入 `--src template.docx --md draft.md --dst output.docx`，
-     或修改下方 SRC/MD/DST 配置后无参数运行
-  2. python3 md2docx_footnotes.py --src template.docx --md draft.md --dst output.docx
-     （或 uv run --offline --with python-docx python3 ...）
-  3. 验证输出：正文脚注引用数 == md脚注条数、唯一ID连续、红色run数符合预期
+  python3 -X utf8 md2docx_footnotes.py --src template.docx --md draft.md --dst output.docx
+  （依赖：python3 -m pip install python-docx lxml；Windows 用 py）
 
-已知要点（2026-08 实测）：
-- 模板docx须含自定义样式：一级标题（黑体居中）、二级标题（楷体左对齐）、
-  三级标题（宋体左对齐）、正文1（宋体/Times 10.5pt 两端对齐 首行缩进2字符 行距20磅固定）；
-  FootnoteText/FootnoteReference 样式存在于模板 styles.xml 即可复用。
-- md标题格式两套均支持：#/##/### 与 纯文本"一、/（一）/1."（3.0格式）。
-- 脚注标记格式 [N] 或 [脚注N]；生成前先统一（删空[]、[][脚注N]→[脚注N]）。
-- lxml 写 xml:space 必须用 {http://www.w3.org/XML/1998/namespace}space 命名空间，
-  直接 set('xml:space') 会报 Invalid attribute name。
-- 网络不可用时 uv run 加 --offline 用缓存。
-- 破折号纪律：生成前先清正文破折号（——），文献标题内的保留。
-- 红色段落判定按段落开头前缀；**插入内容必须独立成段**（追加到原段尾会让判定失效）。
+Markdown 约定：
+- 标题可写 #/##/###/####，也可直接写“一、”“（一）”“1. ”；
+- 正文脚注标记写 [N] 或 [脚注N]；文末 “## 脚注” 之后逐行写 “[N] 内容”；
+- “摘　要：”“关键词：” 行按标签 + 内容双字体处理。
+
+模板样式：优先使用模板中的“一级标题/二级标题/三级标题/正文1”，
+缺失时回退到 Word 内置 Heading 1/2/3 与 Normal。字体字号集中在 FONTS 配置，
+默认值只是中文法学期刊的常见版式，请按目标期刊要求或样稿实测修改。
+插入的新内容须独立成段，否则按段首判定的红色标注会失效。
 """
 import argparse
 import re
@@ -45,13 +39,33 @@ from lxml import etree
 SRC = "/path/to/template.docx"   # 模板（继承样式/页边距）
 MD  = "/path/to/draft.md"
 DST = "/path/to/output.docx"
-TMP = "/tmp/_no_fn.docx"
+TMP = ""  # 留空时在输出目录旁自动创建并清理临时文件
 
 # ---- 修改标注版配置（干净版留空即可） ----
 RED_PARA_STARTS = ()
 RED_FOOTNOTES = ()
 RED_SPLIT_MARK = ""
 RED_FOOTNOTE_ID = 0
+
+# ---- 字体配置（东亚字体, 西文字体, 字号pt）；按目标期刊或样稿实测修改 ----
+FONTS = {
+    "title": ("黑体", "Times New Roman", 20),
+    "author": ("宋体", "Times New Roman", 11),
+    "affiliation": ("楷体", "楷体", 10.5),
+    "abstract_label": ("黑体", "Times New Roman", 10.5),
+    "abstract_body": ("楷体", "楷体", 10.5),
+    "h1": ("黑体", "Times New Roman", 11),
+    "h2": ("楷体", "楷体", 10.5),
+    "h3": ("宋体", "宋体", 10.5),
+    "body": ("宋体", "Times New Roman", 10.5),
+    "footnote": ("宋体", "Times New Roman", 9),
+}
+STYLE_FALLBACKS = {
+    "一级标题": "Heading 1",
+    "二级标题": "Heading 2",
+    "三级标题": "Heading 3",
+    "正文1": "Normal",
+}
 
 
 def configure_cli():
@@ -128,59 +142,93 @@ def set_run_font(run, east, west, size_pt, bold=False, red=False):
         rPr.insert(0, rFonts)
     rFonts.set(qn('w:eastAsia'), east)
 
+_missing_styles = set()
+
+
+def resolve_style(style_name):
+    names = {style.name for style in doc.styles}
+    if style_name in names:
+        return doc.styles[style_name]
+    fallback = STYLE_FALLBACKS.get(style_name)
+    if style_name not in _missing_styles:
+        _missing_styles.add(style_name)
+        print(f"模板缺少样式“{style_name}”，回退为“{fallback or '默认段落'}”")
+    if fallback and fallback in names:
+        return doc.styles[fallback]
+    return None
+
+
 def add_para(style_name=None):
     p = doc.add_paragraph()
     if style_name:
-        p.style = doc.styles[style_name]
+        style = resolve_style(style_name)
+        if style is not None:
+            p.style = style
     return p
+
+
+def add_run(p, text, font_key, red=False):
+    east, west, size = FONTS[font_key]
+    r = p.add_run(text)
+    set_run_font(r, east, west, size, red=red)
+    return r
+
+
+def add_labeled(p, s, label_re):
+    m = re.match(label_re, s)
+    if m:
+        add_run(p, m.group(1), "abstract_label")
+        add_run(p, m.group(2), "abstract_body")
+    else:
+        add_run(p, s, "abstract_body")
+
 
 first_content = True
 for line in body_md.split("\n"):
     s = line.strip()
     if not s or s == "---":
         continue
-    if first_content and not s.startswith(("摘", "关键词")) and "作者姓名" not in s:
+    hashes = len(s) - len(s.lstrip("#"))
+    if hashes and s[hashes:hashes + 1] == " ":
+        s = s[hashes:].strip()
+    else:
+        hashes = 0
+    if first_content and (hashes == 1 or (hashes == 0 and not s.startswith(("摘", "关键词")) and "作者姓名" not in s)):
         p = add_para(); p.alignment = 1
-        r = p.add_run(s); set_run_font(r, "黑体", "Times New Roman", 20)
+        add_run(p, s, "title")
         first_content = False
         continue
     first_content = False
     if s == "作者姓名":
         p = add_para(); p.alignment = 1
-        r = p.add_run(s); set_run_font(r, "宋体", "Times New Roman", 11)
+        add_run(p, s, "author")
     elif s.startswith("（单位名称"):
         p = add_para(); p.alignment = 1
-        r = p.add_run(s); set_run_font(r, "楷体", "楷体", 10.5)
+        add_run(p, s, "affiliation")
     elif s.startswith(("摘　要", "摘要")):
         p = add_para(); p.alignment = 3
-        m = re.match(r"^(摘　要[：:])(.*)$", s)
-        if m:
-            r1 = p.add_run(m.group(1)); set_run_font(r1, "黑体", "黑体", 10.5)
-            r2 = p.add_run(m.group(2)); set_run_font(r2, "楷体", "楷体", 10.5)
+        add_labeled(p, s, r"^(摘\s*要[：:])(.*)$")
     elif s.startswith("关键词"):
         p = add_para(); p.alignment = 3
-        m = re.match(r"^(关键词[：:])(.*)$", s)
-        if m:
-            r1 = p.add_run(m.group(1)); set_run_font(r1, "黑体", "Times New Roman", 10.5)
-            r2 = p.add_run(m.group(2)); set_run_font(r2, "楷体", "楷体", 10.5)
-    elif re.match(r"^[一二三四五六七八九十]+、", s):   # 一级标题（纯文本或## 后同）
+        add_labeled(p, s, r"^(关键词[：:])(.*)$")
+    elif hashes == 2 or re.match(r"^[一二三四五六七八九十]+、", s):   # 一级标题
         p = add_para("一级标题")
-        r = p.add_run(re.sub(r"^#+\s*", "", s)); set_run_font(r, "黑体", "Times New Roman", 11)
-    elif re.match(r"^（[一二三四五六七八九十]+）", s):  # 二级标题
+        add_run(p, s, "h1")
+    elif hashes == 3 or re.match(r"^（[一二三四五六七八九十]+）", s):  # 二级标题
         p = add_para("二级标题")
-        r = p.add_run(s); set_run_font(r, "楷体", "楷体", 10.5)
-    elif re.match(r"^\d+\.\s", s):                      # 三级标题
+        add_run(p, s, "h2")
+    elif hashes >= 4 or re.match(r"^\d+\.\s", s):                    # 三级标题
         p = add_para("三级标题")
-        r = p.add_run(s); set_run_font(r, "宋体", "宋体", 10.5)
-    else:                                               # 正文
-        red_para = s.startswith(RED_PARA_STARTS)
+        add_run(p, s, "h3")
+    else:                                                               # 正文
+        red_para = bool(RED_PARA_STARTS) and s.startswith(RED_PARA_STARTS)
         p = add_para("正文1")
         for idx, part in enumerate(re.split(r"\[(?:脚注)?(\d+)\]", s)):
             if idx % 2 == 0:
                 if part:
-                    r = p.add_run(part); set_run_font(r, "宋体", "Times New Roman", 10.5, red=red_para)
+                    add_run(p, part, "body", red=red_para)
             else:
-                r = p.add_run(f"〔FNREF_{part}〕"); set_run_font(r, "宋体", "Times New Roman", 10.5, red=red_para)
+                add_run(p, f"〔FNREF_{part}〕", "body", red=red_para)
 
 doc.save(TMP)
 
@@ -192,9 +240,11 @@ def w(tag):
 def make_text_run(content, red=False):
     r = etree.Element(w("r"))
     rPr = etree.SubElement(r, w("rPr"))
-    etree.SubElement(rPr, w("rFonts"), {w("ascii"): "Times New Roman", w("hAnsi"): "Times New Roman", w("eastAsia"): "宋体"})
-    etree.SubElement(rPr, w("sz"), {w("val"): "18"})
-    etree.SubElement(rPr, w("szCs"), {w("val"): "18"})
+    fn_east, fn_west, fn_size = FONTS["footnote"]
+    etree.SubElement(rPr, w("rFonts"), {w("ascii"): fn_west, w("hAnsi"): fn_west, w("eastAsia"): fn_east})
+    half_points = str(int(round(fn_size * 2)))
+    etree.SubElement(rPr, w("sz"), {w("val"): half_points})
+    etree.SubElement(rPr, w("szCs"), {w("val"): half_points})
     if red:
         etree.SubElement(rPr, w("color"), {w("val"): "FF0000"})
     t = etree.SubElement(r, w("t"))

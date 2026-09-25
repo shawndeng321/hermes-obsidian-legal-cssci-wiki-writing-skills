@@ -1,193 +1,79 @@
-# DOCX Case Compilation Parsing Lessons (2026-07-30)
+# 案例汇编 DOCX 解析要点
 
-Session: Parsing 53 Supreme Court authoritative cases from a single DOCX compilation
-into individual Wiki entity pages under the 工伤认定群案研究Wiki.
+用于把一份汇编了数十件案例的 DOCX 拆成逐案的实体页。范围核验与既有页面映射见 [docx-scope-and-mapping.md](docx-scope-and-mapping.md)；多来源汇编的容错解析见 [docx-case-compilation-revalidation.md](docx-case-compilation-revalidation.md)。
 
-## Source Structure
+## 常见版式
 
-The source DOCX (`（最高法库存53个权威案例）工伤认定及相关工伤保险行政诉讼案例简编_按时间顺序.docx`)
-organizes 53 cases with:
+- 年份标题（`2003年`）按生效日期分组；
+- 案例之间用一长串破折号分隔；
+- 每案以 `N. 案名` 开头，后接带标签的字段（日期、来源、案号、关键词、基本案情、裁判结果、裁判要旨、裁判依据）；
+- 有的汇编只有目录和页码、没有正文，或正文在另一份文件里。先全文检索确认正文是否存在，再决定能提取哪些字段。
 
-- **Year headers**: `2003年`, `2005年`, etc. — group cases by effective date
-- **Separators**: Long dash lines (`————————————————————————————`, 28 em dashes) between cases
-- **Case entries**: Numbered `N. Case Name`, followed by labeled fields
+## 关键陷阱
 
-## Critical Parsing Pitfalls
+### 1. 分隔线与副标题
 
-### 1. Separator vs Subtitle Detection
+分隔线是二十多个连续的 `—`；许多案名本身含 `——` 引出副标题。用 `'——' in line` 判断分隔线，会把带副标题的案例从中间切断并静默丢失。用 `line.count('—') > 5` 判断。
 
-The separator is 28 consecutive `—` characters. Some case titles contain `——` (2 dashes) as a subtitle delimiter (e.g., `吴某发、卢某英诉重庆市北碚区工伤保险管理所给付工伤保险金案——工伤职工冒用他人身份...`).
+### 2. 文件名重名
 
-**DO NOT use `'——' in line` to detect separators** — it matches both separators (28 dashes) and subtitles (2 dashes), causing subtitle-bearing cases to be split mid-title.
-
-**USE `line.count('—') > 5`** — this reliably distinguishes real separators from subtitles.
-
-This single bug caused 10 out of 53 cases to be silently dropped in the first run.
-
-### 2. Duplicate Filenames
-
-When two cases generate the same short name (e.g., "李某" from 2024), the second `write_file` call silently overwrites the first. Use a counter dictionary:
+两案生成同一个短名（同年两个“李某案”）时，后写的会覆盖先写的。用计数器追加后缀：
 
 ```python
-_filename_counter = {}
+_counter = {}
 
-def make_filename(year, case_name):
-    short = extract_short_name(case_name)
-    base = f"案例-{year}-{short}"
-    if base in _filename_counter:
-        _filename_counter[base] += 1
-        return f"{base}-{_filename_counter[base]}.md"
-    else:
-        _filename_counter[base] = 1
-        return f"{base}.md"
+def make_filename(case_id, year, short_name):
+    base = f"案例{case_id}-{year}-{short_name}"
+    _counter[base] = _counter.get(base, 0) + 1
+    return f"{base}.md" if _counter[base] == 1 else f"{base}-{_counter[base]}.md"
 ```
 
-This affected cases 44 and 52 (both "李某" in 2024).
+### 3. 目录条目的页码后缀
 
-## Field Extraction Regex Patterns
+目录项形如 `某某案\t186`，解析前去掉制表符后的页码。
 
-Standard regex patterns for Chinese legal case compilations:
+## 字段提取正则（按实际标签调整）
 
 ```python
-# Date
-date_match = re.search(r'裁判/监督日期[：:]\s*(.+?)$', text, re.MULTILINE)
-
-# Source
-source_match = re.search(r'来源[：:]\s*(.+?)$', text, re.MULTILINE)
-
-# Case number
-cn_match = re.search(r'案号[：:]\s*(.+?)$', text, re.MULTILINE)
-
-# Keywords
-kw_match = re.search(r'关键词[：:]\s*(.+?)$', text, re.MULTILINE)
-
-# Facts (to next section header)
-facts_match = re.search(r'基本案情（简化）[：:]\s*(.+?)(?=\n裁判结果（简化）)', text, re.DOTALL)
-
-# Result (to next section header)
-result_match = re.search(r'裁判结果（简化）[：:]\s*(.+?)(?=\n裁判要旨[：:])', text, re.DOTALL)
-
-# Gist (to next section header)
-gist_match = re.search(r'裁判要旨[：:]\s*(.+?)(?=\n裁判依据[：:])', text, re.DOTALL)
-
-# Legal basis (to end of text)
-basis_match = re.search(r'裁判依据[：:]\s*(.+?)$', text, re.DOTALL)
+date   = re.search(r'裁判/监督日期[：:]\s*(.+?)$', text, re.M)
+source = re.search(r'来源[：:]\s*(.+?)$', text, re.M)
+number = re.search(r'案号[：:]\s*(.+?)$', text, re.M)
+kw     = re.search(r'关键词[：:]\s*(.+?)$', text, re.M)
+facts  = re.search(r'基本案情[^：:\n]*[：:]\s*(.+?)(?=\n裁判结果)', text, re.S)
+result = re.search(r'裁判结果[^：:\n]*[：:]\s*(.+?)(?=\n裁判要旨)', text, re.S)
+gist   = re.search(r'裁判要旨[：:]\s*(.+?)(?=\n裁判依据)', text, re.S)
+basis  = re.search(r'裁判依据[：:]\s*(.+?)$', text, re.S)
 ```
 
-## Legal Basis Normalization
+字段缺失时写“原文未载明”，不推测。
 
-The source compilation often repeats the same statute in multiple phrasings:
-- `《工伤保险条例》第十四条第六项`
-- `《工伤保险条例》第十四条第(六)项`
-- `《工伤保险条例》第十四条第六项之规定`
-- `《工伤保险条例》第十四条第六项的规定`
+## 裁判依据去重
 
-Basic dedup approach: split by `；`, normalize common law names (ensure `《》` brackets), create a whitespace-stripped key for dedup. Catches ~70% of duplicates.
+同一条文常以多种写法重复出现（`第十四条第六项`、`第十四条第（六）项`、`……之规定`、`……的规定`）。按 `；` 拆分，补全书名号，去掉“之规定”“的规定”，以去空白后的字符串为键去重。简单去重只能消除大部分重复，残留少量重复可以接受，但不要为去重改写条文内容。
 
-```python
-def normalize_legal_basis(text):
-    items = re.split(r'[；;]', text)
-    normalized = []
-    seen = set()
-    for item in items:
-        item = item.strip()
-        if not item or len(item) < 3: continue
-        if item.startswith('一审') or item.startswith('二审'): continue
-        # Ensure law names have brackets
-        item = re.sub(r'(?<!《)工伤保险条例(?!》)', '《工伤保险条例》', item)
-        item = re.sub(r'(?<!《)行政诉讼法(?!》)', '《行政诉讼法》', item)
-        # ... more law name patterns
-        key = re.sub(r'\s+', '', item)
-        if key not in seen:
-            seen.add(key)
-            normalized.append(item)
-    return "\n".join(f"- {item}" for item in normalized)
-```
+## 标签、维度与概念链接的自动生成
 
-Limitation: doesn't catch all variations. Some repetition in the output is expected.
+可以用“关键词 → 标签/概念/维度”的映射表给案例初步打标、挂概念链接、归入分析维度，但：
 
-## Three-Dimension Auto-Classification
+- 映射表**按本项目**的 SCHEMA 标签词表、概念页清单和用户确认的分析框架编写，不沿用其他项目；
+- 每页标签数量设上限（如 5 个），领域主标签放第一个；
+- 概念、论文链接每节设上限（如 3 条），且目标必须是已存在的页面；
+- 关键词计分只是初稿：自动生成的维度定位和争议焦点极易模板化，最终要以裁判要旨和理由为据逐页复核，并在研究设计中说明哪些字段已人工核验。
 
-Keyword-scoring approach to assign each case to research dimensions:
+示意结构：
 
 ```python
-dim1_keywords = ["认定方法", "审查标准", "举证责任", "证据", "高度盖然性", "综合判断", "劳动关系认定"]
-dim2_keywords = ["适用", "解释", "立法本意", "合理时间", "合理路线", "工作原因", "工作场所", "工伤保险责任", "上下班途中"]
-dim3_keywords = ["撤销", "司法审查", "程序性行政行为", "行政复议", "检察监督", "抗诉", "不予认定", "送达", "注销"]
-```
-
-Special rules:
-- "举证责任" + "分配" → dimension 1 (举证责任分配规则)
-- "程序性行政行为" → dimension 3 (程序可诉性)
-- "抗诉" or "检察监督" or "跟进监督" → dimension 3 (检察监督)
-
-Score each dimension by keyword hits, take the top 1-2 dimensions.
-
-## Tag Auto-Generation
-
-Keyword-to-tag mapping for Chinese legal cases:
-
-```python
-tag_map = [
-    ("举证责任", ["举证责任", "证明", "证据"]),
-    ("上下班途中", ["上下班", "合理路线", "合理时间"]),
-    ("工作原因", ["工作原因", "工作职责"]),
-    ("工作场所", ["工作场所", "工作区域"]),
-    ("工作时间", ["工作时间", "合理延伸"]),
-    ("视同工伤", ["48小时", "突发疾病", "视同"]),
-    ("劳动关系", ["劳动关系", "事实劳动", "从属性"]),
-    ("工伤保险责任", ["工伤保险责任", "工伤保险待遇"]),
-    ("违法转包", ["转包", "分包", "挂靠"]),
-    ("新就业形态", ["骑手", "外卖", "平台", "快递员"]),
-    ("超龄劳动者", ["退休", "超龄", "超过法定退休年龄"]),
-    ("检察监督", ["检察", "抗诉", "监督"]),
-    ("冒用身份", ["冒用", "身份"]),
-    ("职业病", ["职业病", "职业", "诊断"]),
-    ("因工外出", ["因工外出", "外出"]),
-    ("用人单位注销", ["注销", "注销登记"]),
-    ("行政复议", ["行政复议", "复议"]),
+TAG_MAP = [
+    ("举证责任", ["举证", "证明责任", "证据"]),
+    ("程序问题", ["受理", "中止", "送达", "时效"]),
+    # 按本项目词表补充
 ]
 ```
 
-Always prepend `工伤认定` as the first tag. Cap at 5 tags.
+## 来源材料自身的问题
 
-## Concept and Thesis Linking
+汇编本身可能有缺陷：部分公报案例未单列案号，检察案例对法院案号作匿名处理，个别要旨被判决书抬头错位替代，相邻两案的事实段落互相复制。如实记录为“来源缺陷”，不要自行修补成看似完整的内容。
 
-Link cases to concept pages by matching case content keywords against a concept-to-keyword map:
+## 解析脚本的保存
 
-```python
-concept_map = [
-    ("工伤认定的核心要件", ["核心要件", "认定要件"]),
-    ("工伤认定中的举证责任", ["举证责任", "举证", "证明责任"]),
-    ("工伤认定中的不确定法律概念", ["不确定", "解释", "判断标准"]),
-    ("工伤认定中的程序性问题", ["程序", "受理", "中止", "送达", "时效"]),
-    ("工伤认定的司法审查", ["司法审查", "行政诉讼", "审查标准"]),
-    ("上下班途中合理时间的认定边界", ["上下班", "合理时间", "合理路线"]),
-    ("工作时间的功能主义解构", ["工作时间", "合理延伸", "准备性"]),
-    ("劳动关系与工伤认定", ["劳动关系", "事实劳动", "从属性"]),
-    ("工伤保险制度", ["工伤保险待遇", "工伤保险基金", "先行支付"]),
-    ("检察跟进监督制度", ["检察", "抗诉", "监督", "检例"]),
-    ("新就业形态劳动者职业伤害保障", ["骑手", "外卖", "平台", "快递"]),
-]
-```
-
-Similarly for thesis entities. Max 3 links per section.
-
-## Source Document Quality Issues
-
-Not all cases in the source compilation have complete data:
-
-- **5 cases** (公报案例) have "原公报文本未单列裁判案号" — no case numbers in source
-- **2 cases** (检例205, 检例236) have "原文对法院案号作匿名处理" 
-- **1 case** (邓金龙, case 12) has truncated 裁判要旨 — shows "广东省深圳市中级人民法院 / 行 政 判 决 书 / （2016）粤03行终792号" instead of the actual legal principle (source document error)
-- **1 case** (谢某, case 32) has overlapping facts with case 24 (检例205) — both reference "李某" in their basic facts section (possible source document copy-paste error)
-
-## Session Results
-
-- **53 cases** parsed from 1 DOCX (64362 chars)
-- **53 entity pages** created in `entities/`
-- **5 cases** with missing case numbers (preserved as "原公报文本未单列裁判案号")
-- **0 parsing errors** after fixing separator detection
-- All pages have `群案研究定位`, tags, concept links, and thesis links
-
-Parsing script saved to `_scripts/create_case_pages.py` in the wiki directory.
+解析脚本可放在 vault 内的 `_scripts/`（排除在正式页面统计之外），便于复现与审计。脚本不得写死本机路径；写入前先试运行，确认页数、编号和字段覆盖率。

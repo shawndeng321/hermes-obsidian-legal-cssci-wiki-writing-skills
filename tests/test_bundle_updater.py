@@ -365,17 +365,21 @@ class ReleaseContractTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(checked.returncode, 0, checked.stderr)
-        self.assertIn("Bundle 1.0.0 is consistent", checked.stdout)
+        self.assertIn("Bundle 2026.0925.0 is consistent", checked.stdout)
 
         manifest = json.loads((ROOT / "bundle-release.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["bundle_version"], "1.0.0")
+        self.assertEqual(manifest["bundle_version"], "2026.0925.0")
         self.assertEqual(
             manifest["skills"],
             {
-                "chinese-law-paper-writing": "5.2.0",
-                "legal-research-wiki": "4.2.0",
-                "legal-wiki-audit-repair": "4.3.0",
+                "chinese-law-paper-writing": "6.0.0",
+                "legal-research-wiki": "5.0.0",
+                "legal-wiki-audit-repair": "5.0.0",
             },
+        )
+        self.assertEqual(
+            [entry["bundle_version"] for entry in manifest["history"]],
+            ["1.0.0", "2026.0925.0"],
         )
         updater_bytes = {
             (ROOT / skill_name / "scripts" / "legal_skills_update.py").read_bytes()
@@ -968,6 +972,53 @@ class SourceTransactionTests(unittest.TestCase):
                 "source-copy",
             )
 
+    def test_recognizes_claude_code_plugin_directories(self):
+        module = self.module
+        self.assertTrue(module.is_claude_plugin_path(
+            Path("/home/u/.claude/plugins/cache/m/p/2.0.0/chinese-law-paper-writing"), env={}
+        ))
+        self.assertTrue(module.is_claude_plugin_path(
+            Path("/opt/cfg/plugins/cache/m/p/2.0.0"), env={}
+        ))
+        self.assertTrue(module.is_claude_plugin_path(
+            Path("/opt/custom/plugins/marketplaces/m"), env={"CLAUDE_CONFIG_DIR": "/opt/custom"}
+        ))
+        self.assertFalse(module.is_claude_plugin_path(
+            Path("/home/u/.claude/skills/chinese-law-paper-writing"), env={}
+        ))
+        self.assertFalse(module.is_claude_plugin_path(
+            Path("/home/u/.codex/skills"), env={}
+        ))
+
+    def test_refuses_to_apply_into_a_claude_code_plugin_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            skills_root = Path(tmp) / ".claude" / "plugins" / "cache" / "m" / "p" / "2.0.0"
+            skills_root.mkdir(parents=True)
+            write_installation(skills_root)
+            with self.assertRaises(self.module.ArchiveError):
+                self.module.detect_installation_mode(skills_root, SKILLS)
+
+    def test_check_reports_update_channel(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin_skill = Path(tmp) / ".claude" / "plugins" / "cache" / "m" / "p" / "2.0.0" / SKILLS[0]
+            plain_skill = Path(tmp) / "skills" / SKILLS[0]
+            calls = []
+
+            def fake_inner(skill_dir, **kwargs):
+                calls.append(skill_dir)
+                return {"status": "cached", "fatal": False}
+
+            with patch.object(self.module, "_check_for_update", fake_inner):
+                self.assertEqual(
+                    self.module.check_for_update(plugin_skill)["update_channel"],
+                    "claude-plugin",
+                )
+                self.assertEqual(
+                    self.module.check_for_update(plain_skill)["update_channel"],
+                    "bundle",
+                )
+            self.assertEqual(calls, [plugin_skill, plain_skill])
+
     def test_applies_three_skills_and_keeps_timestamped_backup(self):
         with self.fixture() as fixture:
             result = self.module.apply_source_transaction(
@@ -987,6 +1038,81 @@ class SourceTransactionTests(unittest.TestCase):
                 sorted(SKILLS),
             )
             self.assertTrue((fixture.state_root / "worker" / "legal_skills_update.py").is_file())
+
+    def _group_into_category(self, skills_root: Path) -> Path:
+        """Mimic Hermes: one Skill at the top level, two under a category folder."""
+        category = skills_root / "research"
+        category.mkdir()
+        for skill_name in SKILLS[1:]:
+            (skills_root / skill_name).rename(category / skill_name)
+        return category
+
+    def test_updates_skills_grouped_in_category_folders_in_place(self):
+        with self.fixture() as fixture:
+            category = self._group_into_category(fixture.skills_root)
+            self.assertEqual(
+                self.module.detect_installation_mode(fixture.skills_root, SKILLS),
+                "source-copy",
+            )
+            report = self.module.inspect_installation(fixture.skills_root, fixture.manifest)
+            self.assertEqual(report["missing_skills"], [])
+
+            result = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+            )
+
+            self.assertEqual(result["status"], "updated", result)
+            self.assertTrue((fixture.skills_root / SKILLS[0] / "bundle-lock.json").is_file())
+            for skill_name in SKILLS[1:]:
+                self.assertFalse((fixture.skills_root / skill_name).exists())
+                lock = json.loads(
+                    (category / skill_name / "bundle-lock.json").read_text(encoding="utf-8")
+                )
+                self.assertEqual(lock["bundle_version"], "1.1.0")
+            transaction = json.loads(
+                (Path(result["backup_path"]) / "transaction.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                Path(transaction["skill_paths"][SKILLS[1]]),
+                (category / SKILLS[1]).resolve(),
+            )
+
+    def test_rejects_a_skill_installed_twice(self):
+        with self.fixture() as fixture:
+            category = self._group_into_category(fixture.skills_root)
+            shutil.copytree(category / SKILLS[1], fixture.skills_root / SKILLS[1])
+            with self.assertRaises(self.module.ArchiveError):
+                self.module.detect_installation_mode(fixture.skills_root, SKILLS)
+
+    def test_fault_restores_skills_to_their_category_folders(self):
+        with self.fixture() as fixture:
+            category = self._group_into_category(fixture.skills_root)
+            before = {
+                skill_name: (category / skill_name / "SKILL.md").read_bytes()
+                for skill_name in SKILLS[1:]
+            }
+
+            def fail_after_second(skill_name):
+                if skill_name == SKILLS[1]:
+                    raise RuntimeError("simulated failure")
+
+            result = self.module.apply_source_transaction(
+                fixture.skills_root,
+                fixture.staged_root,
+                fixture.manifest,
+                fixture.state_root,
+                fault_hook=fail_after_second,
+            )
+
+            self.assertEqual(result["status"], "rolled_back", result)
+            for skill_name in SKILLS[1:]:
+                self.assertEqual(
+                    (category / skill_name / "SKILL.md").read_bytes(), before[skill_name]
+                )
+                self.assertFalse((fixture.skills_root / skill_name).exists())
 
     def test_fault_after_second_skill_restores_all_old_directories(self):
         with self.fixture() as fixture:

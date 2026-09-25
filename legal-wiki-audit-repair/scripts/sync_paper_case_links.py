@@ -9,11 +9,11 @@
 
 也可用 `WIKI_PATH`/`DRY_RUN=1` 兼容旧调用；脚本不会再使用作者机器上的固定绝对路径。
 
-规则（2026-08批次1实测）：
+规则：
 - 观点文本取自案例页条目 '本文观点X（…）'，理由取自 '——' 后（60-150 CJK字）；
 - 编号接续论文页章节现有最大编号+1；
 - 去重按案例完整stem（论文页章节内全部 [[…]] 链接，一条论文页条目可含多案例）；
-- 同名作者多论文必须整名匹配（如王东伟有两篇），严禁 startswith 短名。
+- 同一作者有多篇论文时必须整名匹配，严禁用作者名前缀 startswith。
 """
 import argparse
 import os
@@ -25,9 +25,8 @@ WIKI = CASE_DIR = PAPER_DIR = TASK_DIR = BACKUP_DIR = None
 
 # 论文完整stem（案例页条目中出现的名字，不带.md）→ 论文文件名
 TARGETS = {
-    "胡京-工伤认定的法律逻辑法教义学的观察": "胡京-工伤认定的法律逻辑法教义学的观察.md",
-    # 下一批在此追加，例如：
-    # "黎建飞-工伤疑难案件的司法批复评析": "黎建飞-工伤疑难案件的司法批复评析.md",
+    # 每批在此列出要同步的论文，例如：
+    # "作者-论文题名": "作者-论文题名.md",
 }
 
 
@@ -114,10 +113,9 @@ def adjust_reason(paper_key, case_stem, reason):
     """轻微调整理由使以论文视角表述。默认保持原文（案例页理由已含论文视角表述）；
     个别案例需手工微调时在此加规则。"""
     r = reason
-    # 例（批次1）：'这一法律原点'需点明系论文所述
-    # if case_stem.startswith("案例60-") and "这一法律原点" in r and "论文" not in r:
-    #     r = r.replace("正是倾斜保护劳动者与平衡分配工伤风险这一法律原点的具体落实",
-    #                   "正是论文所述倾斜保护劳动者与平衡分配工伤风险这一法律原点的具体落实")
+    # 例：理由中泛指的“这一原则”需点明系论文所述
+    # if case_stem.startswith("案例60-") and "这一原则" in r and "论文" not in r:
+    #     r = r.replace("这一原则", "论文所述的这一原则")
     return r
 
 
@@ -129,7 +127,7 @@ def configure_paths(wiki, backup_dir=None):
     PAPER_DIR = os.path.join(WIKI, "entities", "引用文献")
     if not os.path.isdir(CASE_DIR) or not os.path.isdir(PAPER_DIR):
         raise ValueError("wiki must contain entities/案例 and entities/引用文献")
-    TASK_DIR = os.path.join(WIKI, ".maintenance", "paper-case-link-2026-08")
+    TASK_DIR = os.path.join(WIKI, ".maintenance", "paper-case-link")
     BACKUP_DIR = os.path.abspath(os.path.expanduser(backup_dir)) if backup_dir else os.path.join(TASK_DIR, "before_batchN")
     if os.path.commonpath([BACKUP_DIR, PAPER_DIR]) == PAPER_DIR:
         raise ValueError("backup directory must not be inside entities/引用文献")

@@ -4,7 +4,7 @@
 
 > 运行时入口是 [`SKILL.md`](SKILL.md)。本页提供模式选择、安装和安全使用方式；批量操作细则见 `references/`。
 >
-> **当前版本：v4.3.0（2026-08）**。新增技能包按需更新路由、6 小时检查缓存与用户确认后统一更新；保留 multimodal-wiki 六项深检和安全修复纪律。
+> **当前版本：v5.0.0（2026-09）**。通用化：去除特定项目的基线计数与会话数据，批量操作手册重写为通用流程（表格别名统一为 `\|`），检修脚本改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 自动检查、四种提示选择、本地修改保护与回滚说明见[根 README 的自动更新章节](../README.md#自动更新)。
 
@@ -48,6 +48,15 @@ AUDIT_ONLY → AUDIT_PLAN → 用户确认范围 → 备份 + DRY_RUN → REPAIR
 
 ## 快速安装
 
+本技能属于[法学学术研究技能包](../README.md)，Hermes、Claude Code、Codex 通用；完整说明见[根 README 的安装说明](../README.md#安装)。
+
+### Claude Code（插件，一次安装三个技能）
+
+```bash
+claude plugin marketplace add shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills
+claude plugin install legal-academic-research@legal-academic-research
+```
+
 ### Hermes Skills Hub
 
 ```bash
@@ -60,16 +69,20 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair --yes
 ```
 
-### 源码安装与 Codex
+### Codex 与其他宿主（源码复制）
 
-需要本地审查、离线安装或在 Codex 使用时，请按[根 README 的安装说明](../README.md#安装)，复制完整的 `legal-wiki-audit-repair` 目录及其 `references/`、`scripts/` 和 `agents/` 支持文件。
+复制完整的 `legal-wiki-audit-repair` 目录（连同 `references/`、`scripts/` 和 `agents/`）到宿主的技能目录，例如 `~/.codex/skills/`、`~/.claude/skills/`、`~/.hermes/skills/` 或 `~/.agents/skills/`。
 
 ## 配套脚本
 
-- `scripts/sync_paper_case_links.py`：同步论文与案例之间的链接。
-- `scripts/insert_norm_sections.py`：按确认范围插入规范段落。
+- `scripts/sync_paper_case_links.py`：把案例页“与论文的关联”同步到论文页（先 `--dry-run`）。
+- `scripts/scan_missing_paper_case_links.py`、`scripts/verify_case_link_sections.py`：论文—案例关联的缺漏扫描与章节验收。
+- `scripts/insert_norm_sections.py`：按确认范围给概念页插入“规范依据”小节。
 - `scripts/multimodal_audit.py`：对指定 Wiki 执行索引、raw 摄入、frontmatter、wikilink、文件卫生和 log 六项只读深检。
-- `references/batch-operations.md`：批量重命名、编号、链接迁移和反链补齐的安全流程。
+- `references/batch-operations.md`：批量重命名、编号、链接迁移、反链补齐、论文—案例同步与纯链接核验的安全流程。
+- `references/comparison-page-format.md`：跨案比较页格式与链接纪律。
+- `references/group-case-stats-extraction.md`：群案统计提取流水线。
+- `evals/pressure-tests.md`：15 个评估场景（工作模式与写入权限、证据判断、批量操作、检修与更新、报告），修改核心规则后逐条检查。
 - `references/multimodal-reingest-stubs.md`：空壳来源补全边界。
 - `references/multimodal-sha256-bulk-fix.md`：raw 提取文本的 SHA256 批量修复方法。
 - 每日检修、三日迭代和通用巡检增强纪律直接维护在 `SKILL.md`。
@@ -83,7 +96,7 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 
 ## 适用范围与边界
 
-适用于法学研究 Wiki 的审计、维护和批量修复。不替代法律意见或客户法律服务；对于原始材料、正式稿件和跨库批量修改，始终保留人工确认和可回滚备份。
+适用于任何法学领域研究 Wiki 的审计、维护和批量修复。不替代法律意见或客户法律服务；对于原始材料、正式稿件和跨库批量修改，始终保留人工确认和可回滚备份。
 
 ## 许可证
 

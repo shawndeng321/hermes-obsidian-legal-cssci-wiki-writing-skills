@@ -547,8 +547,61 @@ def _valid_local_lock(lock: object, skill_name: str) -> dict[str, str] | None:
     return checked
 
 
+def resolve_skill_dirs(
+    skills_root: Path, skill_names: Sequence[str] = SKILLS
+) -> dict[str, Path]:
+    """Locate each installed Skill by name.
+
+    A Skill normally lives at ``skills_root/<name>``. Some hosts group Skills
+    into one level of category folders (Hermes: ``skills/research/<name>``),
+    so a Skill missing at the top level is looked up one level down. Finding
+    the same Skill twice is an error: updating one copy would leave a stale
+    duplicate that the host could still load.
+    """
+    skills_root = Path(skills_root)
+    categories: list[Path] = []
+    if skills_root.is_dir() and not skills_root.is_symlink():
+        for entry in sorted(skills_root.iterdir()):
+            if (
+                entry.name.startswith(".")
+                or entry.is_symlink()
+                or not entry.is_dir()
+                or (entry / "SKILL.md").exists()
+            ):
+                continue
+            categories.append(entry)
+    resolved: dict[str, Path] = {}
+    for name in skill_names:
+        direct = skills_root / name
+        nested = [
+            category / name
+            for category in categories
+            if (category / name).is_symlink() or (category / name).exists()
+        ]
+        direct_present = direct.is_symlink() or direct.exists()
+        if direct_present and nested:
+            raise ArchiveError(
+                f"Skill is installed more than once: {name} "
+                f"({direct} and {', '.join(str(path) for path in nested)})"
+            )
+        if len(nested) > 1:
+            raise ArchiveError(
+                f"Skill is installed more than once: {name} "
+                f"({', '.join(str(path) for path in nested)})"
+            )
+        resolved[name] = nested[0] if nested else direct
+    return resolved
+
+
+def _installed_path(skill_dirs: Mapping[str, Path], relative: str) -> Path:
+    """Map a bundle path such as ``<skill>/references/x.md`` to its installed file."""
+    parts = _safe_relative_path(relative, label="installed path").parts
+    return skill_dirs[parts[0]].joinpath(*parts[1:])
+
+
 def inspect_installation(skills_root: Path, manifest: dict) -> dict:
     checked, _ = _checked_manifest_files(manifest)
+    skill_dirs = resolve_skill_dirs(skills_root)
     modified: list[str] = []
     deleted: list[str] = []
     added: list[str] = []
@@ -557,7 +610,7 @@ def inspect_installation(skills_root: Path, manifest: dict) -> dict:
     for skill_name in SKILLS:
         if skill_name not in checked["skills"]:
             continue
-        skill_root = skills_root / skill_name
+        skill_root = skill_dirs[skill_name]
         if skill_root.is_symlink() or not skill_root.is_dir():
             missing_skills.append(skill_name)
             continue
@@ -638,8 +691,9 @@ def format_incoming_diff(
     changed_paths: list[str],
 ) -> str:
     sections: list[str] = []
+    skill_dirs = resolve_skill_dirs(skills_root)
     for relative in sorted(set(changed_paths)):
-        installed_path = _diff_path(skills_root, relative)
+        installed_path = _installed_path(skill_dirs, relative)
         incoming_path = _diff_path(staged_root, relative)
         installed_text = _text_for_diff(installed_path)
         incoming_text = _text_for_diff(incoming_path)
@@ -686,8 +740,8 @@ def _validate_transaction_path_separation(
     resolved_staged = staged_root.resolve(strict=False)
     resolved_state = state_root.resolve(strict=False)
     installed_roots = [
-        (skill_name, (skills_root / skill_name).resolve(strict=False))
-        for skill_name in SKILLS
+        (skill_name, skill_dir.resolve(strict=False))
+        for skill_name, skill_dir in resolve_skill_dirs(skills_root).items()
     ]
     protected_roots = [("Skills root", resolved_skills), *installed_roots]
 
@@ -704,11 +758,37 @@ def _validate_transaction_path_separation(
                 )
 
 
+def is_claude_plugin_path(
+    path: Path, env: Mapping[str, str] | None = None
+) -> bool:
+    """Return True for a skills tree inside Claude Code's plugin directory."""
+    values = os.environ if env is None else env
+    resolved = Path(path).expanduser().absolute()
+    parts = [part.lower() for part in resolved.parts]
+    for first, second in zip(parts, parts[1:]):
+        if (first, second) in {(".claude", "plugins"), ("plugins", "cache")}:
+            return True
+    config_dir = values.get("CLAUDE_CONFIG_DIR")
+    if config_dir:
+        plugins_root = Path(config_dir).expanduser().absolute() / "plugins"
+        try:
+            resolved.relative_to(plugins_root)
+            return True
+        except ValueError:
+            pass
+    return False
+
+
 def detect_installation_mode(
     skills_root: Path, skill_names: Sequence[str]
 ) -> str:
     """Identify a normal copied-source installation without following links."""
     skills_root = Path(skills_root)
+    if is_claude_plugin_path(skills_root):
+        raise ArchiveError(
+            "Claude Code plugin installations are updated with "
+            "`claude plugin update`, not by this updater"
+        )
     if skills_root.is_symlink():
         raise ArchiveError("Skills root is a symlink")
     if not skills_root.is_dir():
@@ -724,7 +804,7 @@ def detect_installation_mode(
         relative = _safe_relative_path(raw_name, label="Skill name")
         if len(relative.parts) != 1:
             raise ArchiveError(f"invalid Skill name: {raw_name}")
-        skill_root = skills_root / raw_name
+        skill_root = resolve_skill_dirs(skills_root, (raw_name,))[raw_name]
         if skill_root.is_symlink():
             raise ArchiveError(f"Skill directory is a symlink: {raw_name}")
         if not skill_root.exists():
@@ -749,8 +829,9 @@ def _copy_worker_script(state_root: Path) -> Path:
 
 def _verify_installed_bundle(skills_root: Path, manifest: dict) -> None:
     checked, manifest_files = _checked_manifest_files(manifest)
+    skill_dirs = resolve_skill_dirs(skills_root)
     for skill_name in SKILLS:
-        skill_root = skills_root / skill_name
+        skill_root = skill_dirs[skill_name]
         if skill_root.is_symlink() or not skill_root.is_dir():
             raise ArchiveError(f"installed Skill is missing or unsafe: {skill_name}")
         lock_path = skill_root / "bundle-lock.json"
@@ -772,7 +853,7 @@ def _verify_installed_bundle(skills_root: Path, manifest: dict) -> None:
             raise ArchiveError(f"installed Skill version is invalid: {skill_name}")
 
     for relative, expected_digest in manifest_files.items():
-        path = skills_root.joinpath(*PurePosixPath(relative).parts)
+        path = _installed_path(skill_dirs, relative)
         if path.is_symlink() or not path.is_file() or _sha256_file(path) != expected_digest:
             raise ArchiveError(f"installed file hash mismatch: {relative}")
 
@@ -785,13 +866,16 @@ def _rollback_source_transaction(
     skills_root: Path,
     backup_root: Path,
     installed_names: set[str],
+    skill_dirs: Mapping[str, Path] | None = None,
 ) -> None:
+    if skill_dirs is None:
+        skill_dirs = {name: skills_root / name for name in SKILLS}
     for skill_name in installed_names:
-        _remove_tree(skills_root / skill_name)
+        _remove_tree(skill_dirs[skill_name])
     for skill_name in SKILLS:
         backup_skill = backup_root / skill_name
         if backup_skill.is_dir():
-            target = skills_root / skill_name
+            target = skill_dirs[skill_name]
             _remove_tree(target)
             shutil.copytree(backup_skill, target, symlinks=True)
 
@@ -829,6 +913,7 @@ def _apply_source_transaction_locked(
             "modification_report": report,
         }
 
+    skill_dirs = resolve_skill_dirs(skills_root)
     worker_path = _copy_worker_script(state_root)
     backup_root = state_root / "backups" / (
         time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f"-{time.time_ns()}"
@@ -840,11 +925,14 @@ def _apply_source_transaction_locked(
         "bundle_version": checked["bundle_version"],
         "skills": list(SKILLS),
         "skills_root": str(skills_root.resolve()),
+        "skill_paths": {
+            name: str(path.resolve(strict=False)) for name, path in skill_dirs.items()
+        },
         "staged_root": str(staged_root.resolve()),
         "worker": str(worker_path),
     }
     for skill_name in SKILLS:
-        source = skills_root / skill_name
+        source = skill_dirs[skill_name]
         if source.is_dir() and not source.is_symlink():
             shutil.copytree(source, backup_root / skill_name, symlinks=True)
     _write_transaction(transaction_path, transaction)
@@ -852,7 +940,7 @@ def _apply_source_transaction_locked(
     installed_names: set[str] = set()
     try:
         for skill_name in SKILLS:
-            target = skills_root / skill_name
+            target = skill_dirs[skill_name]
             staged_skill = staged_root / skill_name
             _remove_tree(target)
             os.replace(staged_skill, target)
@@ -862,7 +950,9 @@ def _apply_source_transaction_locked(
         _verify_installed_bundle(skills_root, checked)
     except Exception as exc:
         try:
-            _rollback_source_transaction(skills_root, backup_root, installed_names)
+            _rollback_source_transaction(
+                skills_root, backup_root, installed_names, skill_dirs
+            )
             transaction["status"] = "rolled_back"
             transaction["error"] = str(exc)
             _write_transaction(transaction_path, transaction)
@@ -1552,6 +1642,20 @@ def _record_nonfatal_attempt(
 
 
 def check_for_update(
+    skill_dir: Path,
+    *,
+    force: bool = False,
+    now: float | None = None,
+    fetcher=fetch_manifest,
+) -> dict:
+    result = _check_for_update(skill_dir, force=force, now=now, fetcher=fetcher)
+    result["update_channel"] = (
+        "claude-plugin" if is_claude_plugin_path(Path(skill_dir)) else "bundle"
+    )
+    return result
+
+
+def _check_for_update(
     skill_dir: Path,
     *,
     force: bool = False,

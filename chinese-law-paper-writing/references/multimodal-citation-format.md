@@ -15,12 +15,12 @@ end up with floating quotes like `§3.3: "..."` and no path back to the original
 This doc upgrades Query answers to **note-level provenance**: every factual claim
 carries the raw source note it traces to, as a copy-pasteable absolute path.
 
-## 宿主呈现差异（兼容 Hermes 与 Codex）
+## 宿主呈现差异
 
-Hermes 与 Codex 的链接渲染能力可能不同：有的界面只显示纯文本，有的界面能打开 Markdown 本地文件链接。因此统一采用以下最低兼容格式：
+不同代理宿主（Hermes、Claude Code、Codex 等）与终端的链接渲染能力不同：有的界面只显示纯文本，有的界面能打开 Markdown 本地文件链接。因此统一采用以下最低兼容格式：
 
 - The anchor is a **copy-pasteable absolute native path** the reader can paste into
-  Explorer / an editor. This is the required, load-bearing part.
+  a file manager / an editor. This is the required, load-bearing part.
 - 不依赖 `file:///`；只有宿主明确支持时，才额外提供 Markdown 可点击路径。
 - **Do NOT use `^[raw/...]` footnotes** in answers — page-internal, also plain text.
 - Click-to-open lives in **Obsidian** (open the same vault): the `[[entity-page]]`
@@ -41,15 +41,15 @@ Hermes 与 Codex 的链接渲染能力可能不同：有的界面只显示纯文
    (localize the heading, e.g. `## 来源`):
 
    ```
-   [1] [[entity-page]] · `<WIKI_PATH>\raw\papers\<file>.md` · §x.y (optional short quote)
+   [1] [[entity-page]] · `<WIKI_PATH>/raw/papers/<file>.md` · §x.y (optional short quote)
 
-   [2] [[entity-page]] · `<WIKI_PATH>\raw\papers\<other>.md` · §x.y
+   [2] [[entity-page]] · `<WIKI_PATH>/raw/papers/<other>.md` · §x.y
    ```
 
-   - **One BLANK LINE between every entry (hard break — required).** Markdown 渲染器可能折叠连续单换行；空行可以让每个 `[n]` 在 Hermes、Codex 和纯文本环境中都保持独立。
+   - **One BLANK LINE between every entry (hard break — required).** Markdown 渲染器可能折叠连续单换行；空行可以让每个 `[n]` 在各类宿主和纯文本环境中都保持独立。
    - **`[[entity-page]]`** — the Layer-2 page, for Obsidian navigation.
-   - **Backticked absolute native path** — *required, the anchor.* Native Windows
-     path per [multimodal-pdf-extraction.md](../../legal-research-wiki/references/multimodal-pdf-extraction.md). Raw filenames contain `[hash]` brackets, so keep
+   - **Backticked absolute native path** — *required, the anchor.* Use the native path form of the
+     user's OS (Windows `C:\...`, macOS/Linux `/...`), as recorded at ingestion (see `legal-research-wiki` → `references/multimodal-pdf-extraction.md`). Raw filenames contain `[hash]` brackets, so keep
      the path in backticks — never wrap it in `[[ ]]` or `^[ ]`.
    - **§x.y** — *only if it actually appears in the raw note.* Sections are
      best-effort: ingestion concatenates page text without reliable section markers,
@@ -76,9 +76,9 @@ Hermes 与 Codex 的链接渲染能力可能不同：有的界面只显示纯文
 某项来源性主张应在句末标注来源编号 [1]；另一项主张即使来自同一材料，也应重复完整路径 [2]。
 
 ## 来源
-[1] [[某案例页]] · `<WIKI_PATH>\raw\papers\<judgment-file>.md` · §裁判理由
+[1] [[某案例页]] · `<WIKI_PATH>/raw/papers/<judgment-file>.md` · §裁判理由
 
-[2] [[某案例页]] · `<WIKI_PATH>\raw\papers\<judgment-file>.md` · §裁判结果
+[2] [[某案例页]] · `<WIKI_PATH>/raw/papers/<judgment-file>.md` · §裁判结果
 ```
 
 ## Key points

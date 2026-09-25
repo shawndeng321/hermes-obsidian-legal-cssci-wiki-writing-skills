@@ -34,7 +34,7 @@ An article number may contain a suffix that looks like a page count, while the P
 
 ## 3. Where to write bibliographic fields
 
-For this vault’s existing paper-page convention, extend the body metadata block rather than silently inventing new YAML fields:
+If the vault's paper pages keep bibliography in a body metadata block, extend the body metadata block rather than silently inventing new YAML fields:
 
 ```markdown
 > **作者**：作者（单位）
@@ -76,7 +76,7 @@ Report counts, not just a statement that the batch “looks good.” A phase is 
 
 `log.md` is append-only and may contain entries written by other sessions. Read the true tail immediately before appending; do not patch against a remembered last line. Keep the entry for the completed sub-batch separate from the next pending sub-batch.
 
-For this user, report in this order and keep it short:
+Report in this order and keep it short:
 
 1. sub-batch size and exact target class;
 2. one concrete change per page or grouped field type;

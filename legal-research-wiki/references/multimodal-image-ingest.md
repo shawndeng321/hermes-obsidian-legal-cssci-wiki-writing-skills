@@ -13,7 +13,7 @@ immutably and a text extract is saved beside it. This doc defines that flow.
 
 ## 宿主能力检查
 
-Hermes 与 Codex 的图片工具名和模型路由不同。摄入前先确认当前宿主能读取本地或附件图片，并且所选模型支持视觉输入：Hermes 部署可能暴露 `vision_analyze`，Codex 可使用当前任务提供的图片查看能力。若宿主只有文本模型，应停止并报告能力缺口，不得根据文件名或上下文臆测图片内容。
+不同宿主的图片工具名和模型路由不同。摄入前先确认当前宿主能读取本地或附件图片，并且所选模型支持视觉输入：Hermes 部署可能暴露 `vision_analyze`；Claude Code 可用读文件工具直接查看图片；Codex 可使用当前任务提供的图片查看能力。若宿主只有文本模型，应停止并报告能力缺口，不得根据文件名或上下文臆测图片内容。
 
 ## Directory roles (keep these SEPARATE)
 
@@ -75,7 +75,7 @@ cross-link (≥2 `[[wikilinks]]`), update `index.md` + `log.md`.
 
 - Cite the image in page frontmatter: `sources: [raw/screenshots/<topic>.md]`.
 - Provenance markers on synthesized claims: `^[raw/screenshots/<topic>.md]` (per
-  [multimodal-citation-format.md](../../chinese-law-paper-writing/references/multimodal-citation-format.md) — the raw-note path is the traceable anchor).
+  `chinese-law-paper-writing` 技能的 `references/multimodal-citation-format.md` — the raw-note path is the traceable anchor).
 - To **display** the diagram in a Layer-2 page, copy the PNG to `raw/assets/<topic>.png` and
   embed `![[<topic>.png]]`. The source copy in `raw/screenshots/` stays untouched.
 

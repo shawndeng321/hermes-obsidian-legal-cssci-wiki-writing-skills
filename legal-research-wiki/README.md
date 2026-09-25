@@ -1,10 +1,10 @@
 # 法学研究 Wiki 建库 Skill
 
-把论文、案例、法条和研究方法整理成可追溯、可审计、可继续维护的法学研究 Wiki。适合在研究项目开始时建立底层资料结构，也适合已有 Wiki 的分批扩充。
+把论文、案例、法条和研究方法整理成可追溯、可审计、可继续维护的法学研究 Wiki。适用于任何法学领域的学术研究，适合在研究项目开始时建立底层资料结构，也适合已有 Wiki 的分批扩充。
 
 > 运行时入口是 [`SKILL.md`](SKILL.md)。本页解决“什么时候用、怎么开始、如何验收”；详细规则按需阅读 `references/`。
 >
-> **当前版本：v4.2.0（2026-08）**。新增技能包按需更新预检、6 小时检查缓存与用户确认后统一更新；保留图片、音频、本地 PDF 和批量参考文献摄入能力。
+> **当前版本：v5.0.0（2026-09）**。通用化重写：去除特定研究项目的分类、编号和框架，改为“先问研究思路、按项目设计”的通用流程；二十余份会话记录合并为按主题组织的参考文件；运行说明改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 自动检查、四种提示选择、本地修改保护与回滚说明见[根 README 的自动更新章节](../README.md#自动更新)。
 
@@ -19,9 +19,13 @@
 
 | 能力 | 结果 |
 |---|---|
+| 研究思路先行 | 先用五问确认问题意识与分析框架，由用户主导；不套用其他项目的分类与框架 |
 | 范围优先摄入 | 先勘察目录和授权范围，再确认批次，避免无边界扫描整个 Vault |
+| 材料边界 | 查询与写作支撑只用库内页面及原始材料；库内没有的如实说明，先摄入再回答 |
 | 多格式提取 | 支持 PDF/DOCX/图片/音频进入可复核的 Markdown 工作层；OCR、视觉与转录能力按宿主实际配置启用 |
-| 关系网络 | 建立论文↔底稿↔案例↔法条的可追溯链接，而不是只堆标签 |
+| 关系网络 | 建立论文↔底稿↔案例↔法条的可追溯链接（引用轨 + 主旨轨），每条关系写明理由 |
+| 法规范分层 | 按效力层级组织法律、行政法规、司法解释、规章与司法文件，标注性质与现行版本 |
+| 研究设计层 | 研究设计页、论点—证据—引注矩阵、统计口径清单、学术史争议地图 |
 | 六维质量门禁 | 检查摘要、结论、PDF 残留、关键词、YAML 和标题空行 |
 | 学术可用性 | 区分假说与事实、来源线索与已核验材料，保留证据缺口 |
 
@@ -35,6 +39,15 @@
 
 ## 快速安装
 
+本技能属于[法学学术研究技能包](../README.md)，Hermes、Claude Code、Codex 通用；完整说明见[根 README 的安装说明](../README.md#安装)。
+
+### Claude Code（插件，一次安装三个技能）
+
+```bash
+claude plugin marketplace add shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills
+claude plugin install legal-academic-research@legal-academic-research
+```
+
 ### Hermes Skills Hub
 
 ```bash
@@ -47,13 +60,13 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki --yes
 ```
 
-### 源码安装与 Codex
+### Codex 与其他宿主（源码复制）
 
-需要本地审查、离线安装或在 Codex 使用时，请按[根 README 的安装说明](../README.md#安装)，复制完整的 `legal-research-wiki` 目录及其 `references/`、`scripts/` 和 `agents/` 支持文件。
+复制完整的 `legal-research-wiki` 目录（连同 `references/`、`scripts/` 和 `agents/`）到宿主的技能目录，例如 `~/.codex/skills/`、`~/.claude/skills/`、`~/.hermes/skills/` 或 `~/.agents/skills/`。
 
 ## 第一次使用
 
-给 Hermes 或 Codex 的任务应明确范围、资料入口和写回权限，例如：
+给 Hermes、Claude Code 或 Codex 的任务应明确范围、资料入口和写回权限，例如：
 
 ```text
 使用 legal-research-wiki。只读取指定的 research/2026 行政法项目目录，先检查 SCHEMA.md、index.md 和 log.md，
@@ -71,16 +84,28 @@ hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skil
 
 - 维护与修复：[legal-wiki-audit-repair](../legal-wiki-audit-repair/)
 - 论文写作：[chinese-law-paper-writing](../chinese-law-paper-writing/)
-- 批量 PDF 提取：`scripts/batch_extract_papers.py`
+- 批量 PDF 提取：`scripts/batch_extract_papers.py`；论文摄入与质量修复：`references/pdf-paper-ingestion.md`
+- 案例摄入与汇编解析：`references/case-ingestion.md`、`references/docx-case-parsing-lessons.md`
+- 法规范层级与摄入：`references/legal-norm-hierarchy-and-reply-ingestion.md`
+- 链接网络：`references/linking-and-cross-references.md`；全库死链检查：`scripts/check_wikilinks.py`
+- 研究设计与统计：`references/research-design-pages.md`、`references/statistics-landing-and-case-matching.md`
+- 文献库审计与修复：`references/literature-audit-and-repair.md`、`references/staged-deep-repair.md`
+- 多模型与子代理编排：`references/model-orchestrated-legal-research-workflow.md`
+- 易错点清单：`references/pitfalls-and-lessons.md`
+- 页面模板：`assets/templates/`（SCHEMA、index、log，以及案例、论文、概念、比较、法规范含时序版本、研究设计、矩阵、范文、底稿、导航、交接、行文思路页）
+- 规范时序版本与历史案件评价：`references/norm-versioning.md`
+- 论文草稿新版本同步：`references/draft-version-sync.md`
+- 建库访谈与 Wiki 设计书：`references/wiki-design-interview.md`、`assets/templates/wiki-design-brief.md`
+- 评估场景：`evals/pressure-tests.md`（15 个场景：建库访谈、摄入、材料边界、链接与批量操作、报告），修改核心规则后逐条检查
 - 多模态摄入：`references/multimodal-image-ingest.md`、`references/multimodal-audio-ingest.md`、`references/multimodal-pdf-extraction.md`
 - 批量参考文献：`references/multimodal-bulk-refs.md`
-- PDF 文本残留清洗：`scripts/clean_pdf_artifacts.py`
+- PDF 文本残留清洗：`scripts/clean_pdf_artifacts.py`（只处理论文页的摘要、关键词、核心论点、主要结论四个章节，其他页面与章节不动）
 
 脚本默认偏保守：先 `--dry-run`，写入时提供调用方指定的备份目录；不要把作者本机路径、整库路径或未经确认的批量范围写进命令。
 
 ## 适用范围与边界
 
-适用于法学论文、案例研究、法条和研究方法材料的知识库整理。不替代法律意见、诉状、合同审查或客户法律建议；不把来源线索自动升级为已核验事实。
+适用于任何法学领域的论文、案例研究、法条和研究方法材料的知识库整理。不替代法律意见、诉状、合同审查或客户法律建议；不把来源线索自动升级为已核验事实。
 
 ## 许可证
 
