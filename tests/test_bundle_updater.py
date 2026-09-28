@@ -46,7 +46,7 @@ def make_manifest(version: str, history: list[dict] | None = None) -> dict:
         "changes": [f"Change {version}"],
         "archive_url": (
             "https://github.com/shawndeng321/"
-            "hermes-obsidian-legal-cssci-wiki-writing-skills/"
+            "legal-academic-research-skills/"
             "archive/refs/heads/main.zip"
         ),
         "files": {
@@ -365,21 +365,21 @@ class ReleaseContractTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(checked.returncode, 0, checked.stderr)
-        self.assertIn("Bundle 2026.0925.0 is consistent", checked.stdout)
+        self.assertIn("Bundle 2026.0928.0 is consistent", checked.stdout)
 
         manifest = json.loads((ROOT / "bundle-release.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["bundle_version"], "2026.0925.0")
+        self.assertEqual(manifest["bundle_version"], "2026.0928.0")
         self.assertEqual(
             manifest["skills"],
             {
-                "chinese-law-paper-writing": "6.0.0",
-                "legal-research-wiki": "5.0.0",
-                "legal-wiki-audit-repair": "5.0.0",
+                "chinese-law-paper-writing": "6.0.1",
+                "legal-research-wiki": "5.0.1",
+                "legal-wiki-audit-repair": "5.0.1",
             },
         )
         self.assertEqual(
             [entry["bundle_version"] for entry in manifest["history"]],
-            ["1.0.0", "2026.0925.0"],
+            ["1.0.0", "2026.0925.0", "2026.0928.0"],
         )
         updater_bytes = {
             (ROOT / skill_name / "scripts" / "legal_skills_update.py").read_bytes()
@@ -504,7 +504,7 @@ class ReleaseContractTests(unittest.TestCase):
                 "changes": ["旧说明"],
                 "archive_url": (
                     "https://github.com/shawndeng321/"
-                    "hermes-obsidian-legal-cssci-wiki-writing-skills/"
+                    "legal-academic-research-skills/"
                     "archive/refs/heads/main.zip"
                 ),
             }
@@ -526,7 +526,7 @@ class ReleaseContractTests(unittest.TestCase):
                 ],
                 "archive_url": (
                     "https://github.com/shawndeng321/"
-                    "hermes-obsidian-legal-cssci-wiki-writing-skills/"
+                    "legal-academic-research-skills/"
                     "archive/refs/heads/main.zip"
                 ),
             }
@@ -561,7 +561,7 @@ class ReleaseContractTests(unittest.TestCase):
                 "changes": ["增加每6小时一次的按需更新检查"],
                 "archive_url": (
                     "https://github.com/shawndeng321/"
-                    "hermes-obsidian-legal-cssci-wiki-writing-skills/"
+                    "legal-academic-research-skills/"
                     "archive/refs/heads/main.zip"
                 ),
             }
@@ -1136,7 +1136,7 @@ class SourceTransactionTests(unittest.TestCase):
 
 def make_hermes_lock(skills_root: Path, *, version: int = 1) -> dict:
     installed = {}
-    repository = "shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills"
+    repository = "shawndeng321/legal-academic-research-skills"
     for skill_name in SKILLS:
         skill_root = skills_root / skill_name
         content_hash = hashlib.sha256()
@@ -1212,7 +1212,7 @@ class HermesAdapterTests(unittest.TestCase):
             lock = self.module.read_hermes_lock(fixture.lock_path)
             detected = self.module.detect_hermes_bundle(lock, fixture.skills_root)
 
-        self.assertEqual(detected["repository"], "shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills")
+        self.assertEqual(detected["repository"], "shawndeng321/legal-academic-research-skills")
         self.assertEqual(detected["skills"], list(SKILLS))
 
     def test_rejects_mixed_sources_and_unknown_lock_versions(self):

@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "bundle_id": "hermes-legal-research-skills",
-  "bundle_version": "2026.0925.0",
-  "published_at": "2026-09-25T00:00:00+08:00",
-  "update_level": "major",
-  "summary": "通用化为法学学术研究技能包；同步 Victor 写作方法 1.2.0-rc.1；Hermes、Claude Code、Codex 通用",
+  "bundle_version": "2026.0928.0",
+  "published_at": "2026-09-28T00:00:00+08:00",
+  "update_level": "fix",
+  "summary": "仓库更名为 legal-academic-research-skills；更新地址随之调整",
   "skills": {
-    "chinese-law-paper-writing": "6.0.0",
-    "legal-research-wiki": "5.0.0",
-    "legal-wiki-audit-repair": "5.0.0"
+    "chinese-law-paper-writing": "6.0.1",
+    "legal-research-wiki": "5.0.1",
+    "legal-wiki-audit-repair": "5.0.1"
   },
   "compatibility": {
     "hermes": true,
@@ -17,22 +17,15 @@
     "python": ">=3.9"
   },
   "changes": [
-    "三个技能去除特定研究项目的内容，适用于任何法学领域；项目专属做法改为“先问用途、按项目设计”",
-    "写作技能 6.0.0：合并 VictorTran1023/law-paper-writing-skill 1.2.0-rc.1（按命题类型检查论证、正文表达与作者声音、需求拆解、审稿反馈落实），保留 DOCX 真实脚注与溯源格式",
-    "建库技能 5.0.0：新增建库访谈与 Wiki 设计书、20 个页面模板、规范时序版本方法、论文草稿版本同步、知识库与论文写作双轨隔离",
-    "审计技能 5.0.0：批量操作手册通用化（表格别名统一为 \\|），新增评估场景",
-    "修复：PDF 残留清洗不再损坏案例页；死链检查兼容 Python 3.9，按 Obsidian 规则解析并容忍草稿中的脚注标记",
-    "兼容性：新增 Claude Code 插件安装；描述适配 Hermes 的 57 字符显示；命令统一为 python3（Windows 用 py）；Python 3.9+ 即可",
-    "更新器：识别 Claude Code 插件安装；支持技能分放在分类子目录（如 Hermes 的 research/），原地更新与回滚",
-    "按原生多模态模型精简：模型直接读图片与扫描件，删除“不支持看图”时的检查与分工；音频仍通过转录处理"
+    "仓库更名为 shawndeng321/legal-academic-research-skills，更新器清单地址与 README 安装命令随之更新；旧地址自动跳转，已安装用户无需操作"
   ],
-  "archive_url": "https://github.com/shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/archive/refs/heads/main.zip",
+  "archive_url": "https://github.com/shawndeng321/legal-academic-research-skills/archive/refs/heads/main.zip",
   "files": {
     "chinese-law-paper-writing/.gitignore": "6a81b94bd1bead23e3cabf52807afab7d89e3d73023b8da34e226fa951889b54",
-    "chinese-law-paper-writing/CHANGELOG.md": "6b95881299a87279cb14cdeef928d310b500911fa7d75709d04342c4ad06275c",
+    "chinese-law-paper-writing/CHANGELOG.md": "8b0cd28c3118ee73b7e2fa7d63b55f32fa93a5d76a4af618dd9e0f8c23b4ac78",
     "chinese-law-paper-writing/LICENSE": "911bbb65eefae9246cc68a14856c88c28ba0f965b6e4aa3f901d79ae1fda63e6",
-    "chinese-law-paper-writing/README.md": "23a6258b742c90101c13e7af68146126f2214beaa7b843d9e4067c616dcd1651",
-    "chinese-law-paper-writing/SKILL.md": "85f0227b18be594eca3dc1a2c3ac6215593a45db4c21c52b9dac905bb334c45b",
+    "chinese-law-paper-writing/README.md": "1d14c5679675860b6988f5e7eb3bedfe3f2dfdf0929804bc5804397e3c983c98",
+    "chinese-law-paper-writing/SKILL.md": "1edb44fe1c8b9cf7b79cc3f72f8bb69e0a7de4229952999cf4c7356eab9d907b",
     "chinese-law-paper-writing/agents/openai.yaml": "2dc6b8536b37f9d25b1cd77b02fb2a09dfeacee913a20dc80eb4f58de7fce668",
     "chinese-law-paper-writing/assets/examples/legal-prose-examples.md": "16abbbb1eccb5c55040c81aeee7c28fd7df4d93d46ce87253eb8f0a9e8499aa3",
     "chinese-law-paper-writing/assets/readme/paper-banner.jpg": "86ae6227d4e56dfa6e9ef5e04fafaf87f7b01ab39e16b91e757bace8aa3ae287",
@@ -44,7 +37,7 @@
     "chinese-law-paper-writing/assets/templates/revision-response.md": "7165a8882150daac7905b61aade8ef97215a6fc2e1b8228ddf1260c0c539192a",
     "chinese-law-paper-writing/assets/templates/source-register.md": "7247ee6ac6f83dbdc29612fa484e427fbab16f46d57b7fbb8bab2656d5a55e24",
     "chinese-law-paper-writing/assets/templates/submission-checklist.md": "af70875e8239b92bf8fbdac9b2bcc6687d60d310023c0e7f42e4557560e82bf4",
-    "chinese-law-paper-writing/bundle-lock.json": "7a4ae31df3b9d4285e74133dbf47fb4ecd838f6898f516026e4c162f9c81785f",
+    "chinese-law-paper-writing/bundle-lock.json": "9c1b1d0db0c813803b06e6c0f2e7955868bf2d3bd3786b889e6020b9f4e4b8b0",
     "chinese-law-paper-writing/evals/2026-09-09-review.md": "a08a875932764f9883c510471dd3bb02cd285246e602b29d831835e040c75841",
     "chinese-law-paper-writing/evals/2026-09-18-writing-review.md": "758828912b82fea5773414bc6383c87075d7b3f4166b2a7585d9122de378bf9a",
     "chinese-law-paper-writing/evals/argumentation-cases.md": "0f59fc961ea493670e5e46f5a979b5f150179c7bdcb1439f088e51f2241df5bd",
@@ -64,12 +57,12 @@
     "chinese-law-paper-writing/references/obsidian-knowledge-base.md": "f0267a56dc1e4423b1db78d9d3bffb65868b8ee3c5ba6d5e1168d5ebc85cb911",
     "chinese-law-paper-writing/references/requirement-decomposition.md": "1c22ebb47737340359c45254a8169a3debd8cd611b950eca4d21e1ae36e77b02",
     "chinese-law-paper-writing/references/workflow.md": "0ac02f737b6339d44ea6569f49137ed49401089e8d36b7727e2a62d68e451e6c",
-    "chinese-law-paper-writing/scripts/legal_skills_update.py": "edbf5f8b65a0f4e34e811d1c08c38732e3762abf27ab9e4848f65827ca5363de",
+    "chinese-law-paper-writing/scripts/legal_skills_update.py": "1bc7766a92efc9b734851e35c3710d4db4808a8e04992e51865d031d1f983bad",
     "chinese-law-paper-writing/scripts/md2docx_footnotes.py": "6bcb1991fe1aa76bfe817da66d6f418566dc74d0963e3530569f2b7bee4841cf",
-    "legal-research-wiki/CHANGELOG.md": "c5ec7b4bd9375b92dfc44d0449edb1d31d8cf4a20344ed80d321aff39c13eb4f",
+    "legal-research-wiki/CHANGELOG.md": "7397ca9f36598de0ca4b36db23d2830ddbfc1077c697df943a86f4f9e3d72308",
     "legal-research-wiki/LICENSE": "b3f9110f538701c205a0aade6a72efc69ba5acf96b27caa17814a6332a510b85",
-    "legal-research-wiki/README.md": "d37d0f5346f88ef0872cc658818dac7d19b74e1d31fe2d899a04797b19464cf7",
-    "legal-research-wiki/SKILL.md": "6287e803493568afe89091cf513ac66d5cca612e637e636af052b101e64f192b",
+    "legal-research-wiki/README.md": "bc3f9b952aa03aafd8343d490535972a79c07617017f23b836277bf1c816d79e",
+    "legal-research-wiki/SKILL.md": "460abf7b73c6f8e125732240db26dfb66cb3ce7792dc739b91667a6a3b77d67e",
     "legal-research-wiki/agents/openai.yaml": "32715f38b3c294e6047531ee661833abff9f33aa927f70a67029405dcc0b7fae",
     "legal-research-wiki/assets/templates/README.md": "89c8a39c53158d89c8b9db8338a3d3ba7fc98b5c142f3254a35b7735e8ac143b",
     "legal-research-wiki/assets/templates/SCHEMA.md": "4ec4948538c5a9bd6b17f0d23182ea1af5ea2828bcfb90a47803b770498724eb",
@@ -92,7 +85,7 @@
     "legal-research-wiki/assets/templates/research-design.md": "15ecfdbbad3a785b843e2d575485f6c013b6d53f0d1c8be334497e50e06a3636",
     "legal-research-wiki/assets/templates/wiki-design-brief.md": "87f4ba284aaf0e1f13c9f688c6e951c9bb3c2cf9793c3ab5f1b2141b3a854408",
     "legal-research-wiki/assets/templates/writing-outline.md": "b6494949f573fcc9a045479cb6a3d73fa12b0ac0e4ddf8107f8402b67358cc46",
-    "legal-research-wiki/bundle-lock.json": "96f03a77b6d6c407ddae6daab8826eb0f482fbbd9dc27f42ce1d6c3df74c5dd5",
+    "legal-research-wiki/bundle-lock.json": "0a8a594eae507c2bf023b07067359b84f508236a5d3fdcba71a9c79d8382c8fa",
     "legal-research-wiki/evals/pressure-tests.md": "58dfc151bd69ec55a120937841c27a8dbae63ae3effdd07d8c444ca07cadbe1f",
     "legal-research-wiki/references/case-ingestion.md": "959d733633d3e397a8baa788c42a3f88d845888cd98607d441515c677dd54e08",
     "legal-research-wiki/references/content-completeness.md": "bd77e1d1879d223fe7e3ad5574d3ccee438c27bd4932e607ed30e5823c629e78",
@@ -121,13 +114,13 @@
     "legal-research-wiki/scripts/batch_extract_papers.py": "b5dbc29a109ee7f90f43af3797888a2e9dd451641175b9e90b788e8f90a28bb8",
     "legal-research-wiki/scripts/check_wikilinks.py": "1c05de32b1547d891bb5969cad20674367f7af15654f869bb4d30efcc6afe998",
     "legal-research-wiki/scripts/clean_pdf_artifacts.py": "7062295aabf0ba82fa4122bd42116b5fec827171a2ef9a1461a8e99be9aa1443",
-    "legal-research-wiki/scripts/legal_skills_update.py": "edbf5f8b65a0f4e34e811d1c08c38732e3762abf27ab9e4848f65827ca5363de",
-    "legal-wiki-audit-repair/CHANGELOG.md": "67e505e80952c6a3d503b696a7977485eb9cc9749bb4db9f4bb807c4f3bfddb4",
+    "legal-research-wiki/scripts/legal_skills_update.py": "1bc7766a92efc9b734851e35c3710d4db4808a8e04992e51865d031d1f983bad",
+    "legal-wiki-audit-repair/CHANGELOG.md": "f979a25084c2a633ffcb5acf7de1c23974f02bbb8c9f98b59fd00fc9b7f9b7fd",
     "legal-wiki-audit-repair/LICENSE": "b3f9110f538701c205a0aade6a72efc69ba5acf96b27caa17814a6332a510b85",
-    "legal-wiki-audit-repair/README.md": "6ae2741d5621764d21e7fcfe649f517863b05faccf9c7d93c925ff60c4fe71a7",
-    "legal-wiki-audit-repair/SKILL.md": "d449ea78c692a2469cefc7e9b19144d9bf2394667549cfe004e74fe7d9bcbc4c",
+    "legal-wiki-audit-repair/README.md": "bdded912a807d67d39c82c9abe3fdde3e7cd733a4cf15e2066db84ac86a56dc6",
+    "legal-wiki-audit-repair/SKILL.md": "c7e24ca65bcba742469f3fdd20ba05a067accb39cf37084247d149d08015b81c",
     "legal-wiki-audit-repair/agents/openai.yaml": "466d7c1256241fea798dfdfe807de841800c5102164bb22715c6dc1d6f13af0b",
-    "legal-wiki-audit-repair/bundle-lock.json": "51c977e4cdcbd810421d58f4b74dbac967335b846791bab528c576038648a54a",
+    "legal-wiki-audit-repair/bundle-lock.json": "c090ae7c5bdfaaa9db9d76463497aeaabbda460c441fab52bed20e56f3ef4d6f",
     "legal-wiki-audit-repair/evals/pressure-tests.md": "ff6860f51634c280f9767e6e33276f82b7c015f4de95f6d6471828c2eaedf381",
     "legal-wiki-audit-repair/references/batch-operations.md": "a40aac9989167b7c93288977e18c7e8f1e3406cd4c32b9fbd477ee244dcf6868",
     "legal-wiki-audit-repair/references/comparison-page-format.md": "7ec21073f08a9ea9860e0fcfb262e0bdb40dfe2be4040008605b52ca1321d91a",
@@ -135,7 +128,7 @@
     "legal-wiki-audit-repair/references/multimodal-reingest-stubs.md": "1c5e9f68116a7fa7a6422dbb74d8fe6d1dfc32037609f296ed878095a452992b",
     "legal-wiki-audit-repair/references/multimodal-sha256-bulk-fix.md": "eef982515d34478b88e5850c8e0ebf73c8e57ff07874751f9c699f42e198cc45",
     "legal-wiki-audit-repair/scripts/insert_norm_sections.py": "e3d238dbdec65f4fcd172c5bf99a5ba14ef7162537409c652392bcccefc309e0",
-    "legal-wiki-audit-repair/scripts/legal_skills_update.py": "edbf5f8b65a0f4e34e811d1c08c38732e3762abf27ab9e4848f65827ca5363de",
+    "legal-wiki-audit-repair/scripts/legal_skills_update.py": "1bc7766a92efc9b734851e35c3710d4db4808a8e04992e51865d031d1f983bad",
     "legal-wiki-audit-repair/scripts/multimodal_audit.py": "a1ac6eeebae50813fb973613b1bafb50accbff51e4167455d02d0c4d492233ae",
     "legal-wiki-audit-repair/scripts/scan_missing_paper_case_links.py": "5db6ceb6adb8fbd85bb1a3557cdff133f0b3757a13bb82e7d3135a076d18e72b",
     "legal-wiki-audit-repair/scripts/sync_paper_case_links.py": "8e830d030bbf435849c56300ea4309e34e0e4b25eb92ae839099e89b93a60299",
@@ -167,6 +160,15 @@
         "兼容性：新增 Claude Code 插件安装；描述适配 Hermes 的 57 字符显示；命令统一为 python3（Windows 用 py）；Python 3.9+ 即可",
         "更新器：识别 Claude Code 插件安装；支持技能分放在分类子目录（如 Hermes 的 research/），原地更新与回滚",
         "按原生多模态模型精简：模型直接读图片与扫描件，删除“不支持看图”时的检查与分工；音频仍通过转录处理"
+      ]
+    },
+    {
+      "bundle_version": "2026.0928.0",
+      "published_at": "2026-09-28T00:00:00+08:00",
+      "update_level": "fix",
+      "summary": "仓库更名为 legal-academic-research-skills；更新地址随之调整",
+      "changes": [
+        "仓库更名为 shawndeng321/legal-academic-research-skills，更新器清单地址与 README 安装命令随之更新；旧地址自动跳转，已安装用户无需操作"
       ]
     }
   ]

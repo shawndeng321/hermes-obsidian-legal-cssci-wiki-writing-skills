@@ -4,7 +4,7 @@
 
 > 运行时入口是 [`SKILL.md`](SKILL.md)。本页提供模式选择、安装和安全使用方式；批量操作细则见 `references/`。
 >
-> **当前版本：v5.0.0（2026-09）**。通用化：去除特定项目的基线计数与会话数据，批量操作手册重写为通用流程（表格别名统一为 `\|`），检修脚本改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
+> **当前版本：v5.0.1（2026-09）**。通用化：去除特定项目的基线计数与会话数据，批量操作手册重写为通用流程（表格别名统一为 `\|`），检修脚本改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 自动检查、四种提示选择、本地修改保护与回滚说明见[根 README 的自动更新章节](../README.md#自动更新)。
 
@@ -53,20 +53,20 @@ AUDIT_ONLY → AUDIT_PLAN → 用户确认范围 → 备份 + DRY_RUN → REPAIR
 ### Claude Code（插件，一次安装三个技能）
 
 ```bash
-claude plugin marketplace add shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills
+claude plugin marketplace add shawndeng321/legal-academic-research-skills
 claude plugin install legal-academic-research@legal-academic-research
 ```
 
 ### Hermes Skills Hub
 
 ```bash
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
+hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-audit-repair
 ```
 
 无交互终端加 `--yes`：
 
 ```bash
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair --yes
+hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-audit-repair --yes
 ```
 
 ### Codex 与其他宿主（源码复制）

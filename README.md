@@ -24,11 +24,13 @@
 
 | 技能 | 版本 | 适合什么时候用 | 核心能力 |
 |---|---:|---|---|
-| [`chinese-law-paper-writing`](chinese-law-paper-writing/) | **v6.0.0** | 选题、研究、起草、修订、审核或期刊适配 | 七种任务模式、五项硬门禁、按命题类型检查论证、正文表达与作者声音、材料边界、实证材料细则、期刊适配、DOCX 真实脚注 |
-| [`legal-research-wiki`](legal-research-wiki/) | **v5.0.0** | 新建、扩充或重新整理研究库 | 研究思路先行、范围优先摄入、PDF/DOCX/图片/音频摄入、法规范分层、论文—案例双轨关联、研究设计层、六维质量门禁、闭世界查询 |
-| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v5.0.0** | 已有 Wiki 出现死链、字段缺失、批量操作或技能包更新需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、模板化检测、每日检修与迭代、六项深检脚本 |
+| [`chinese-law-paper-writing`](chinese-law-paper-writing/) | **v6.0.1** | 选题、研究、起草、修订、审核或期刊适配 | 七种任务模式、五项硬门禁、按命题类型检查论证、正文表达与作者声音、材料边界、实证材料细则、期刊适配、DOCX 真实脚注 |
+| [`legal-research-wiki`](legal-research-wiki/) | **v5.0.1** | 新建、扩充或重新整理研究库 | 研究思路先行、范围优先摄入、PDF/DOCX/图片/音频摄入、法规范分层、论文—案例双轨关联、研究设计层、六维质量门禁、闭世界查询 |
+| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v5.0.1** | 已有 Wiki 出现死链、字段缺失、批量操作或技能包更新需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、模板化检测、每日检修与迭代、六项深检脚本 |
 
 ## 2026-09 更新内容
+
+> 2026-09-28：仓库由 `hermes-obsidian-legal-cssci-wiki-writing-skills` 更名为 `legal-academic-research-skills`。旧地址会自动跳转，已安装的用户无需操作；新安装请使用新地址。
 
 本次发布把技能包从“为一个研究项目迭代出来的工具”改成**通用的法学学术研究技能包**，并同步了 [VictorTran1023/law-paper-writing-skill](https://github.com/VictorTran1023/law-paper-writing-skill) 的最新写作方法。
 
@@ -69,7 +71,7 @@
 在终端运行（或在 Claude Code 会话中把 `claude plugin` 换成 `/plugin`）：
 
 ```bash
-claude plugin marketplace add shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills
+claude plugin marketplace add shawndeng321/legal-academic-research-skills
 claude plugin install legal-academic-research@legal-academic-research
 ```
 
@@ -87,17 +89,17 @@ claude plugin update legal-academic-research@legal-academic-research
 三个技能需要分别安装：
 
 ```bash
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair
+hermes skills install shawndeng321/legal-academic-research-skills/chinese-law-paper-writing
+hermes skills install shawndeng321/legal-academic-research-skills/legal-research-wiki
+hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-audit-repair
 ```
 
 脚本或 CI 环境加 `--yes`：
 
 ```bash
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing --yes
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-research-wiki --yes
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/legal-wiki-audit-repair --yes
+hermes skills install shawndeng321/legal-academic-research-skills/chinese-law-paper-writing --yes
+hermes skills install shawndeng321/legal-academic-research-skills/legal-research-wiki --yes
+hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-audit-repair --yes
 ```
 
 安装后运行 `hermes skills list`，确认三个技能均为 `enabled`。不要把仓库根 URL 或单个 `SKILL.md` 当成完整安装入口。
@@ -110,7 +112,7 @@ macOS / Linux：
 
 ```bash
 checkout="$(mktemp -d)/legal-skills"
-git clone --branch main https://github.com/shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills.git "$checkout"
+git clone --branch main https://github.com/shawndeng321/legal-academic-research-skills.git "$checkout"
 
 # 选择目标目录（任选其一）：
 target="$HOME/.codex/skills"          # Codex
@@ -128,7 +130,7 @@ Windows（PowerShell），使用一个空的临时目录：
 
 ```powershell
 $checkout = Join-Path $env:TEMP 'legal-academic-research-skills'
-git clone --branch main https://github.com/shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills.git $checkout
+git clone --branch main https://github.com/shawndeng321/legal-academic-research-skills.git $checkout
 ```
 
 Codex：
@@ -321,6 +323,6 @@ tests/                        # 兼容性、脚本安全与更新器回归测试
 
 ## 版本与许可证
 
-每项技能遵循 `X.Y.Z` 版本策略：面向所有使用者的结构性调整升 `X`，新增能力或规则升 `Y`，修订和兼容性修复升 `Z`。技能包（Bundle）版本按发布日期编号，格式为 `年.月日.当天序号`，例如 `2026.0925.0`；同一天再次发布时序号加一（`2026.0925.1`）。这种写法仍是三段数字，已安装的更新器可以正确比较新旧。当前为 `2026.0925.0`。
+每项技能遵循 `X.Y.Z` 版本策略：面向所有使用者的结构性调整升 `X`，新增能力或规则升 `Y`，修订和兼容性修复升 `Z`。技能包（Bundle）版本按发布日期编号，格式为 `年.月日.当天序号`，例如 `2026.0925.0`；同一天再次发布时序号加一（`2026.0925.1`）。这种写法仍是三段数字，已安装的更新器可以正确比较新旧。当前为 `2026.0928.0`。
 
 MIT。`chinese-law-paper-writing` © VictorTran1023 与 Shawn Deng；其余 © 2026 Shawn Deng。本项目不是 Hermes、Anthropic、OpenAI、Obsidian、CSSCI 期刊或其他机构的官方指南、认证或录用承诺。

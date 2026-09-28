@@ -33,7 +33,7 @@ MAX_DIFF_TEXT_BYTES = 1024 * 1024
 MAX_MANIFEST_BYTES = 1024 * 1024
 MANIFEST_URL = (
     "https://raw.githubusercontent.com/shawndeng321/"
-    "hermes-obsidian-legal-cssci-wiki-writing-skills/main/bundle-release.json"
+    "legal-academic-research-skills/main/bundle-release.json"
 )
 ALLOWED_DOWNLOAD_HOSTS = {
     "github.com",

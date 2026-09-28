@@ -11,7 +11,7 @@
 
 <div align="center">
 
-![Version: v6.0.0](https://img.shields.io/badge/Version-v6.0.0-5C3D2E?style=flat-square)
+![Version: v6.0.1](https://img.shields.io/badge/Version-v6.0.1-5C3D2E?style=flat-square)
 ![Hermes: Skill](https://img.shields.io/badge/Hermes-Skill-193B5A?style=flat-square)
 ![Claude Code: Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-B4532A?style=flat-square)
 ![Codex: Skill](https://img.shields.io/badge/Codex-Skill-0F4C5C?style=flat-square)
@@ -101,14 +101,14 @@
 Claude Code（一次安装三个技能）：
 
 ```bash
-claude plugin marketplace add shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills
+claude plugin marketplace add shawndeng321/legal-academic-research-skills
 claude plugin install legal-academic-research@legal-academic-research
 ```
 
 Hermes Skills Hub（脚本或 CI 环境加 `--yes`）：
 
 ```bash
-hermes skills install shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills/chinese-law-paper-writing --yes
+hermes skills install shawndeng321/legal-academic-research-skills/chinese-law-paper-writing --yes
 ```
 
 Codex 与其他支持 `SKILL.md` 的宿主：复制完整的 `chinese-law-paper-writing` 目录（连同 `references/`、`assets/`、`scripts/`）到宿主的技能目录，例如 `~/.codex/skills/`、`~/.claude/skills/` 或 `~/.agents/skills/`。

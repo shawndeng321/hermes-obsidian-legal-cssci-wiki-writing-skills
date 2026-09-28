@@ -24,9 +24,9 @@ DESCRIPTION_TRIGGERS = {
     "legal-wiki-audit-repair": ("updating its Bundle", "全库体检", "每日检修", "检查法学技能更新"),
 }
 EXPECTED_VERSIONS = {
-    "chinese-law-paper-writing": "6.0.0",
-    "legal-research-wiki": "5.0.0",
-    "legal-wiki-audit-repair": "5.0.0",
+    "chinese-law-paper-writing": "6.0.1",
+    "legal-research-wiki": "5.0.1",
+    "legal-wiki-audit-repair": "5.0.1",
 }
 PROJECT_SPECIFIC_TERMS = (
     "工伤",
@@ -149,7 +149,7 @@ class SkillCompatibilityTests(unittest.TestCase):
     def test_installation_docs_use_real_skill_identifiers(self) -> None:
         repository = (
             "shawndeng321/"
-            "hermes-obsidian-legal-cssci-wiki-writing-skills"
+            "legal-academic-research-skills"
         )
         root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
         for skill_name in SKILLS:
@@ -165,7 +165,7 @@ class SkillCompatibilityTests(unittest.TestCase):
         self.assertIn("## 2026-09 更新内容", root_readme)
         self.assertIn(
             "claude plugin marketplace add "
-            "shawndeng321/hermes-obsidian-legal-cssci-wiki-writing-skills",
+            "shawndeng321/legal-academic-research-skills",
             root_readme,
         )
         self.assertIn(

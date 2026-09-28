@@ -2,6 +2,10 @@
 
 本文件记录本技能的版本与变更。新增能力或规则递增次版本号，措辞与格式修订递增修订号；变更同时更新 `SKILL.md` 的 `metadata.version`、技能包根目录的 `bundle-release.json` 与 README。
 
+## 6.0.1（2026-09-28）
+
+- 仓库更名为 `shawndeng321/legal-academic-research-skills`：更新器的清单地址与 README 中的安装命令随之更新。旧地址由 GitHub 自动跳转，已安装的用户不受影响。
+
 ## 6.0.0（2026-09-25，技能包版本线）
 
 本技能包内的写作技能曾有两条版本线：技能包内的 5.x（Hermes 工伤认定研究项目中迭代而来）与 [VictorTran1023/law-paper-writing-skill](https://github.com/VictorTran1023/law-paper-writing-skill) 的 1.x（通用单技能版）。6.0.0 以 1.2.0-rc.1 的正文与参考文件为主体合并两条线，此后版本号沿用本技能包的 6.x。

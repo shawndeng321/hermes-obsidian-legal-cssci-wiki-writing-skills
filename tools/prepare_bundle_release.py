@@ -293,7 +293,7 @@ def _resolve_release(root: Path, args: argparse.Namespace) -> dict:
     if "archive_url" not in release:
         release["archive_url"] = (
             "https://github.com/shawndeng321/"
-            "hermes-obsidian-legal-cssci-wiki-writing-skills/"
+            "legal-academic-research-skills/"
             "archive/refs/heads/main.zip"
         )
     return release

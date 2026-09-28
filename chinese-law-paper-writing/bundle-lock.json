@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "bundle_id": "hermes-legal-research-skills",
-  "bundle_version": "2026.0925.0",
+  "bundle_version": "2026.0928.0",
   "skill_name": "chinese-law-paper-writing",
-  "skill_version": "6.0.0",
+  "skill_version": "6.0.1",
   "files": {
     ".gitignore": "6a81b94bd1bead23e3cabf52807afab7d89e3d73023b8da34e226fa951889b54",
-    "CHANGELOG.md": "6b95881299a87279cb14cdeef928d310b500911fa7d75709d04342c4ad06275c",
+    "CHANGELOG.md": "8b0cd28c3118ee73b7e2fa7d63b55f32fa93a5d76a4af618dd9e0f8c23b4ac78",
     "LICENSE": "911bbb65eefae9246cc68a14856c88c28ba0f965b6e4aa3f901d79ae1fda63e6",
-    "README.md": "23a6258b742c90101c13e7af68146126f2214beaa7b843d9e4067c616dcd1651",
-    "SKILL.md": "85f0227b18be594eca3dc1a2c3ac6215593a45db4c21c52b9dac905bb334c45b",
+    "README.md": "1d14c5679675860b6988f5e7eb3bedfe3f2dfdf0929804bc5804397e3c983c98",
+    "SKILL.md": "1edb44fe1c8b9cf7b79cc3f72f8bb69e0a7de4229952999cf4c7356eab9d907b",
     "agents/openai.yaml": "2dc6b8536b37f9d25b1cd77b02fb2a09dfeacee913a20dc80eb4f58de7fce668",
     "assets/examples/legal-prose-examples.md": "16abbbb1eccb5c55040c81aeee7c28fd7df4d93d46ce87253eb8f0a9e8499aa3",
     "assets/readme/paper-banner.jpg": "86ae6227d4e56dfa6e9ef5e04fafaf87f7b01ab39e16b91e757bace8aa3ae287",
@@ -40,7 +40,7 @@
     "references/obsidian-knowledge-base.md": "f0267a56dc1e4423b1db78d9d3bffb65868b8ee3c5ba6d5e1168d5ebc85cb911",
     "references/requirement-decomposition.md": "1c22ebb47737340359c45254a8169a3debd8cd611b950eca4d21e1ae36e77b02",
     "references/workflow.md": "0ac02f737b6339d44ea6569f49137ed49401089e8d36b7727e2a62d68e451e6c",
-    "scripts/legal_skills_update.py": "edbf5f8b65a0f4e34e811d1c08c38732e3762abf27ab9e4848f65827ca5363de",
+    "scripts/legal_skills_update.py": "1bc7766a92efc9b734851e35c3710d4db4808a8e04992e51865d031d1f983bad",
     "scripts/md2docx_footnotes.py": "6bcb1991fe1aa76bfe817da66d6f418566dc74d0963e3530569f2b7bee4841cf"
   }
 }
