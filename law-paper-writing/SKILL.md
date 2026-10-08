@@ -1,12 +1,12 @@
 ---
-name: chinese-law-paper-writing
+name: law-paper-writing
 description: "Use when writing or reviewing Chinese legal papers. 法学期刊/CSSCI论文：选题、五问需求拆解、提纲、起草、改稿、审稿意见落实、引注与法律时效核查、期刊适配、投稿DOCX脚注; planning, drafting, revising, auditing, journal adaptation. Not for theses, books, contracts, pleadings or client advice."
 license: MIT
 metadata:
-  version: "6.0.1"
+  version: "2610.9.0"
 ---
 
-# 中国法学论文写作
+# Law Paper Writing（法学论文写作）
 
 ## 技能包更新预检
 
@@ -27,13 +27,17 @@ metadata:
 
 ## 配套技能
 
-本技能与 `chinese-law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair` 同属一个技能包，可以单独安装使用。三个技能不一定在同一目录（例如 Hermes 可能把它们分放在不同分类子目录下），引用其他技能的文件时按**技能名**找到该技能再读取，不要假设相对路径。配套技能没有安装时，按下表“未安装时”一列处理，不要假装读取了不存在的文件；需要完整能力时，提示用户安装整个技能包。
+本技能与 `law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair` 同属一个技能包，可以单独安装使用。三个技能不一定在同一目录（例如 Hermes 可能把它们分放在不同分类子目录下），引用其他技能的文件时按**技能名**找到该技能再读取，不要假设相对路径。配套技能没有安装时，按下表“未安装时”一列处理，不要假装读取了不存在的文件；需要完整能力时，提示用户安装整个技能包。
 
 | 用到的内容 | 所在技能 | 未安装时 |
 |---|---|---|
 | 把资料整理成研究库、从库中取证据 | `legal-research-wiki` | 直接按本技能的材料边界与来源登记处理用户提供的资料 |
 | 草稿出新版本时的库内同步流程（`references/draft-version-sync.md`） | `legal-research-wiki` | 只按本技能“稿件版本”一节管理版本与旧稿 |
 | 本技能 `multimodal-citation-format.md` 提到的原始文件路径记录方式 | `legal-research-wiki` | 使用用户提供的原始文件路径，不自行推断 |
+
+## 本次整合
+
+日期版 v2610.9 增量并入上游 v1.4.0：引注体例、逐观点引注、综述与概念处理、多方反馈、摘要规则；保留 DOCX、实证统计、note-level 溯源及稿件管理。处置与保留映射见 [upstream-integration.md](references/upstream-integration.md)，不另装第二个同义写作技能。
 
 ## 核心原则
 
@@ -63,6 +67,7 @@ metadata:
 - 起草正文、修改表达或处理“AI味”反馈时，读取 [legal-prose.md](references/legal-prose.md)；局部任务只处理指定范围，不扩展成全文审核。
 - 使用法律规范、案例、政策、数据或学术文献时，读取 [evidence-and-legal-validity.md](references/evidence-and-legal-validity.md)。
 - 起草正文、补引注、生成全文或执行引用审核时，必须读取 [citation-integrity.md](references/citation-integrity.md)。
+- 决定或核对引注格式时，读取 [citation-format.md](references/citation-format.md)；涉及外文文献，另读 [citation-format-foreign.md](references/citation-format-foreign.md)。未指定期刊时按手册整理的工作体例，期刊正式要求及用户已确认的稿件体例优先；格式正确不等于来源已核验。
 - 适配期刊、摘要、关键词、匿名或投稿要求时，读取 [journal-adaptation.md](references/journal-adaptation.md)。
 - 以案例群、裁判文书样本、调研数据或统计结果支撑论证时，读取 [empirical-case-research.md](references/empirical-case-research.md)。
 - 使用 Obsidian、Markdown 笔记或知识库时，读取 [obsidian-knowledge-base.md](references/obsidian-knowledge-base.md)；回答知识库查询或写作支撑需要把每项主张追溯到具体源文件时，再读取 [multimodal-citation-format.md](references/multimodal-citation-format.md)。
@@ -139,7 +144,7 @@ metadata:
 
 ## 生成正文与引注
 
-生成完整文章、章节或投稿稿件时，凡使用他人观点、原文、数据、案例、法律规范或其他非一般常识的外部事实，必须在对应句或段落后设置引注标识。不得只在文末罗列参考文献。
+生成完整文章、章节或投稿稿件时，凡使用他人观点、原文、数据、案例、法律规范或其他非一般常识的外部事实，必须按观点在对应句就近设置引注标识，不把多项观点的来源堆在段末；同一主张的多个来源可合为一注。不得只在文末罗列参考文献。
 
 未指定期刊和输出格式时，Markdown 工作稿使用脚注标识：
 
@@ -190,6 +195,9 @@ metadata:
 
 - 把背景介绍当作问题提出；
 - 按作者逐一罗列而不评价研究分歧；
+- 综述把多项观点的来源堆在段末，或用文献起止页码替代观点定位；
+- 多方反馈冲突时自行取舍，漏掉脚注批语、标题括注、高亮范围或附录；
+- 摘要用研究动作代替具体判断，加入正文未证明的创新或数据；
 - 只有材料和案例，没有可反驳的作者主张；
 - 法条、案例与规范结论各说各话；
 - 把资料的存在误当作资料已被核验；

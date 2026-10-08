@@ -57,3 +57,5 @@
 **必须**：允许该来源成为 `VERIFIED`，不得为填满表格虚构法律版本或备注。必填字段或适用的条件字段缺失时不得以 `N/A`、`[待核]` 或其他占位词通过终检。
 
 论证规则变更后，另执行 [论证诊断评估场景](argumentation-cases.md)，覆盖问题发现和合理写法不被误判的情况；需求拆解、材料边界、推理链或写作呈现规则变更后，再执行 [通用规则融合新增场景](generic-fusion-cases.md)。
+
+新增引注体例场景 F1—F8 见 [citation-format-cases.md](citation-format-cases.md)；审读反馈与摘要场景 H1—H18 见 [review-feedback-cases.md](review-feedback-cases.md)。执行时保留输入、输出及观察依据；场景文件本身不代表测试已通过。

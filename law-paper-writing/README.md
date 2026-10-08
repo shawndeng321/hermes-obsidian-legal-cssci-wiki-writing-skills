@@ -2,16 +2,16 @@
   <img src="assets/readme/paper-banner.jpg" alt="深蓝与象牙白构成的法学论文写作与证据链主题横幅" width="100%">
 </p>
 
-<h1 align="center">中国法学论文写作 Skill</h1>
+<h1 align="center">Law Paper Writing · 法学论文写作</h1>
 
 <p align="center">
-  <em>Chinese Legal Journal Writing Skill</em><br>
+  <em>Law Paper Writing Skill</em><br>
   从研究问题、学术论证到审稿修改，让观点有依据、章节有联系、反馈有落实。
 </p>
 
 <div align="center">
 
-![Version: v6.0.1](https://img.shields.io/badge/Version-v6.0.1-5C3D2E?style=flat-square)
+![Version: v2610.9](https://img.shields.io/badge/Version-v2610.9-5C3D2E?style=flat-square)
 ![Hermes: Skill](https://img.shields.io/badge/Hermes-Skill-193B5A?style=flat-square)
 ![Claude Code: Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-B4532A?style=flat-square)
 ![Codex: Skill](https://img.shields.io/badge/Codex-Skill-0F4C5C?style=flat-square)
@@ -30,6 +30,10 @@
   <a href="#适用范围">适用范围</a> ·
   <a href="#检验与能力边界">检验与边界</a>
 </p>
+
+**当前版本：v2610.9（机器字段 2610.9.0；2026-10-09）**
+
+本版整合上游 v1.4.0：中文与外文引注体例、逐观点引注、综述/概念处理、多方审读反馈和摘要自查；保留 DOCX、实证、溯源及稿件管理。完整保留与未装入清单见 [upstream-integration.md](references/upstream-integration.md)。
 
 ## 为什么使用
 
@@ -108,12 +112,12 @@ claude plugin install legal-academic-research@legal-academic-research
 Hermes Skills Hub（脚本或 CI 环境加 `--yes`）：
 
 ```bash
-hermes skills install shawndeng321/legal-academic-research-skills/chinese-law-paper-writing --yes
+hermes skills install shawndeng321/legal-academic-research-skills/law-paper-writing --yes
 ```
 
-Codex 与其他支持 `SKILL.md` 的宿主：复制完整的 `chinese-law-paper-writing` 目录（连同 `references/`、`assets/`、`scripts/`）到宿主的技能目录，例如 `~/.codex/skills/`、`~/.claude/skills/` 或 `~/.agents/skills/`。
+Codex 与其他支持 `SKILL.md` 的宿主：复制完整的 `law-paper-writing` 目录（连同 `references/`、`assets/`、`scripts/`）到宿主的技能目录，例如 `~/.codex/skills/`、`~/.claude/skills/` 或 `~/.agents/skills/`。
 
-每次加载时，技能会按 6 小时缓存检查技能包更新；只有发现新版本才提示，更新前必须由你确认。安装后在新会话中直接要求使用 `chinese-law-paper-writing`。
+每次加载时，技能会按 6 小时缓存检查技能包更新；只有发现新版本才提示，更新前必须由你确认。安装后在新会话中直接要求使用 `law-paper-writing`。
 
 ## 使用指南
 
@@ -150,7 +154,7 @@ Word 正文、批注和修订的提取依赖运行环境的文档工具；本技
 在 Hermes 或 Claude Code 的新会话中：
 
 ```text
-使用 chinese-law-paper-writing 的 OUTLINE 模式。根据我提供的论文项目卡、来源登记和允许读取的资料，
+使用 law-paper-writing 的 OUTLINE 模式。根据我提供的论文项目卡、来源登记和允许读取的资料，
 为“行政公益诉讼中调查核实权的边界”建立三级提纲与论点—证据—引注表。
 未定位原文页码的材料必须保留待核标记；不要读取或写入未指定的 Obsidian 文件。
 ```
@@ -158,7 +162,7 @@ Word 正文、批注和修订的提取依赖运行环境的文档工具；本技
 在 Codex 新任务中给出同样清楚的范围：
 
 ```text
-使用 chinese-law-paper-writing 的 AUDIT 模式，审核以下工作稿及其来源登记。
+使用 law-paper-writing 的 AUDIT 模式，审核以下工作稿及其来源登记。
 逐项列出正文引注断链、法律或案例版本待核项和不符合已核验期刊要求的地方；
 不要补造脚注、页码或期刊规则，也不要写回任何资料库文件。
 ```
@@ -209,7 +213,7 @@ Word 正文、批注和修订的提取依赖运行环境的文档工具；本技
 #### 选题诊断
 
 ```text
-使用 chinese-law-paper-writing 的 PLAN 模式，诊断以下选题：……
+使用 law-paper-writing 的 PLAN 模式，诊断以下选题：……
 请给出主问题、已有研究可能的不足、可验证的初步判断、重要反方观点与明确排除范围。
 只能根据我提供的材料判断；不确定处标为待核。
 ```
@@ -231,7 +235,7 @@ Word 正文、批注和修订的提取依赖运行环境的文档工具；本技
 #### 学术增量与框架诊断
 
 ```text
-使用 chinese-law-paper-writing 的 AUDIT 模式，检查以下稿件的学术增量和核心框架。
+使用 law-paper-writing 的 AUDIT 模式，检查以下稿件的学术增量和核心框架。
 只根据提供的稿件、文献原文和来源登记，比较既有解释与本文新增判断，检查各环节的根据、顺序和边界。
 每项问题给出原文位置、推理缺口、补充动作与完成标准；先回查相关章节，不只凭标题下结论。
 材料不足时说明待验证事项，不编造通说、反方观点或引注。暂不改写正文。
@@ -240,7 +244,7 @@ Word 正文、批注和修订的提取依赖运行环境的文档工具；本技
 #### 根据导师或审稿意见修改
 
 ```text
-使用 chinese-law-paper-writing 的 REVISE 模式。
+使用 law-paper-writing 的 REVISE 模式。
 材料 A 是原稿，B 是带反馈的版本，C 是行文建议；请先核对各自内容及可读取的批注、修订。
 根据反馈修改我指定的章节，另存修订稿并保留原文件。
 逐项说明意见对应的原文、实际修改和完成证据；不采纳的意见说明理由，缺依据的事项保留待核。
@@ -250,7 +254,7 @@ Word 正文、批注和修订的提取依赖运行环境的文档工具；本技
 #### 章节衔接检查
 
 ```text
-使用 chinese-law-paper-writing 的 OUTLINE 模式，检查以下提纲和相关正文。
+使用 law-paper-writing 的 OUTLINE 模式，检查以下提纲和相关正文。
 说明各节的输入前提、论证所得及对后文或总结论的作用，指出缺失的中间理由和重复内容。
 保留合理的并列或递进关系，只提出有原文依据的调整；必要时缩窄研究问题，不强行扩写。
 ```
@@ -294,7 +298,7 @@ Word 正文、批注和修订的提取依赖运行环境的文档工具；本技
 <summary>展开目录与用途</summary>
 
 ```text
-chinese-law-paper-writing/
+law-paper-writing/
 ├── SKILL.md                          # 任务路由、硬门禁、更新预检与运行环境
 ├── agents/openai.yaml                # Codex 运行时元数据
 ├── references/

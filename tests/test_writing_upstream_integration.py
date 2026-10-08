@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class WritingUpstreamIntegrationTests(unittest.TestCase):
+    def test_writing_skill_has_one_canonical_name(self) -> None:
+        skill = ROOT / "law-paper-writing" / "SKILL.md"
+        self.assertTrue(skill.is_file(), "renamed writing skill is not present")
+        self.assertFalse((ROOT / "chinese-law-paper-writing").exists())
+        metadata = yaml.safe_load(skill.read_text(encoding="utf-8").split("---", 2)[1])
+        self.assertEqual(metadata["name"], "law-paper-writing")
+
+    def test_three_skill_metadata_versions_share_date_release(self) -> None:
+        for name in ("law-paper-writing", "legal-research-wiki", "legal-wiki-audit-repair"):
+            with self.subTest(skill=name):
+                text = (ROOT / name / "SKILL.md").read_text(encoding="utf-8")
+                metadata = yaml.safe_load(text.split("---", 2)[1])
+                self.assertEqual(metadata["metadata"]["version"], "2610.9.0")
+
+    def test_new_citation_formats_are_routed_and_audited(self) -> None:
+        writing = ROOT / "law-paper-writing"
+        entry = (writing / "SKILL.md").read_text(encoding="utf-8")
+        audit = (writing / "assets/templates/citation-audit.md").read_text(encoding="utf-8")
+        for name in ("citation-format.md", "citation-format-foreign.md"):
+            with self.subTest(file=name):
+                self.assertTrue((writing / "references" / name).is_file())
+                self.assertIn("references/" + name, entry)
+        self.assertIn("适用引注体例", audit)
+        self.assertIn("再次引用", audit)
+
+    def test_review_and_abstract_rules_preserve_research_boundaries(self) -> None:
+        writing = ROOT / "law-paper-writing"
+        diagnostics = (writing / "references/argumentation-diagnostics.md").read_text(encoding="utf-8")
+        citation = (writing / "references/citation-integrity.md").read_text(encoding="utf-8")
+        journal = (writing / "references/journal-adaptation.md").read_text(encoding="utf-8")
+        for section in ("研究现状与文献综述", "一致意见单列", "脚注内的批语", "方法或结果章节"):
+            self.assertIn(section, diagnostics)
+        self.assertIn("逐观点", citation)
+        self.assertIn("程序研究", citation)
+        self.assertIn("改判机制", citation)
+        self.assertIn("四个功能位", journal)
+        self.assertIn("期刊风格观察卡", journal)
+        self.assertIn("用户已确认", journal)
+        self.assertTrue((writing / "assets/examples/abstract-examples.md").is_file())
+        for name in ("citation-format-cases.md", "review-feedback-cases.md"):
+            self.assertTrue((writing / "evals" / name).is_file())
+        pressure = (writing / "evals/pressure-tests.md").read_text(encoding="utf-8")
+        self.assertIn("citation-format-cases.md", pressure)
+        self.assertIn("review-feedback-cases.md", pressure)
+        # 用户扩展能力不是上游精简版的删除候选。
+        for relative in ("references/docx-production.md", "references/empirical-case-research.md",
+                         "references/multimodal-citation-format.md", "references/obsidian-knowledge-base.md"):
+            self.assertTrue((writing / relative).is_file())
+        requirement = (writing / "references/requirement-decomposition.md").read_text(encoding="utf-8")
+        self.assertIn("期刊论文项目的展开提示", requirement)
+        self.assertFalse((writing / "references/obsidian-hermes-workflow.md").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

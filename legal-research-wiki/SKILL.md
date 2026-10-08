@@ -3,7 +3,7 @@ name: legal-research-wiki
 description: "Use when building or querying a Chinese legal wiki. 法学研究Wiki建库（Obsidian/Markdown）：摄入论文PDF/案例汇编/法律法规与司法解释/初稿/图片音频、研究设计、论文—案例—法规范关联、知识库查询. For auditing an existing wiki use legal-wiki-audit-repair."
 license: MIT
 metadata:
-  version: "5.0.1"
+  version: "2610.9.0"
 ---
 
 # 法学研究 Wiki 建库
@@ -25,19 +25,19 @@ metadata:
 
 为任何法学领域的学术研究建立和维护来源可追溯的 Markdown/Obsidian 研究库（LLM Wiki）：学术论文、裁判文书与案例汇编、法律法规与司法文件、用户自己的初稿，以及图片、扫描件、音频等多模态材料。尤其适合群案研究、类型化研究和期刊论文写作前的资料准备。
 
-- 写论文、改稿、期刊适配 → `chinese-law-paper-writing`；
+- 写论文、改稿、期刊适配 → `law-paper-writing`；
 - 体检、审计、批量修复已有研究库 → `legal-wiki-audit-repair`；
 - 只问一个法律问题、不涉及建库时，不使用本技能。
 
 ## 配套技能
 
-本技能与 `chinese-law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair` 同属一个技能包，可以单独安装使用。三个技能不一定在同一目录（例如 Hermes 可能把它们分放在不同分类子目录下），引用其他技能的文件时按**技能名**找到该技能再读取，不要假设相对路径。配套技能没有安装时，按下表“未安装时”一列处理，不要假装读取了不存在的文件；需要完整能力时，提示用户安装整个技能包。
+本技能与 `law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair` 同属一个技能包，可以单独安装使用。三个技能不一定在同一目录（例如 Hermes 可能把它们分放在不同分类子目录下），引用其他技能的文件时按**技能名**找到该技能再读取，不要假设相对路径。配套技能没有安装时，按下表“未安装时”一列处理，不要假装读取了不存在的文件；需要完整能力时，提示用户安装整个技能包。
 
 | 用到的内容 | 所在技能 | 未安装时 |
 |---|---|---|
-| 写论文的五问（`references/requirement-decomposition.md`） | `chinese-law-paper-writing` | 建库访谈的 A、B 两组已覆盖研究问题所需内容，直接按访谈提问 |
-| 逐条溯源的回答格式（`references/multimodal-citation-format.md`） | `chinese-law-paper-writing` | 每项事实主张后注明库内页面与原始文件路径，不写无出处的断言 |
-| 实证与群案材料在论文中的表述限制（`references/empirical-case-research.md`） | `chinese-law-paper-writing` | 比例一律限定为“样本内”，不把样本分布写成趋势 |
+| 写论文的五问（`references/requirement-decomposition.md`） | `law-paper-writing` | 建库访谈的 A、B 两组已覆盖研究问题所需内容，直接按访谈提问 |
+| 逐条溯源的回答格式（`references/multimodal-citation-format.md`） | `law-paper-writing` | 每项事实主张后注明库内页面与原始文件路径，不写无出处的断言 |
+| 实证与群案材料在论文中的表述限制（`references/empirical-case-research.md`） | `law-paper-writing` | 比例一律限定为“样本内”，不把样本分布写成趋势 |
 | 批量同步、缺漏扫描、规范依据插入等脚本；幽灵文件清理；每日检修 | `legal-wiki-audit-repair` | 按本技能 `references/linking-and-cross-references.md` 的手工流程小批执行，先备份 |
 
 ## 核心纪律
@@ -52,7 +52,7 @@ metadata:
 - 库内没有的，如实说“库内无此内容”，标 `[来源不明]`，并给出摄入方案（先摄入再回答）；
 - **空壳或占位页面不算覆盖**：只有 frontmatter 或占位文字的页面视为未摄入；未摄入的样本不能支撑统计结论；
 - 联网检索属于**摄入环节**（经用户授权、为补充材料），不属于查询环节；新获取的材料先入 `raw/` 并登记，再进入页面；
-- 来源性主张（法条、案号、文献页码、数据）必须能回溯到库内页面和原始材料；回答时标出处（`[[页面名]]`，需要逐条溯源时用 `chinese-law-paper-writing` 的 note-level 溯源格式）。
+- 来源性主张（法条、案号、文献页码、数据）必须能回溯到库内页面和原始材料；回答时标出处（`[[页面名]]`，需要逐条溯源时用 `law-paper-writing` 的 note-level 溯源格式）。
 
 ### 3. 一个项目一个 vault
 
@@ -62,7 +62,7 @@ metadata:
 
 新建研究库，或把已有研究库做得更深之前，先做**建库访谈**（[wiki-design-interview.md](references/wiki-design-interview.md)）：分组提问，一次 1—3 个问题并附选项；必问目的、研究问题与分析框架、“将来会怎么用这个库”三组，其余按需深入；整理成《Wiki 设计书》（模板 `assets/templates/wiki-design-brief.md`），用户确认后再定 SCHEMA、目录与模板。已有研究库走访谈的“加深模式”：先只读了解现状，再问痛点、新维度与试点范围。
 
-访谈中关于论文本身的问题（交付物、读者、问题意识、材料、验收标准）与写论文的五问一致，见 `chinese-law-paper-writing` 的 `references/requirement-decomposition.md`；答案写入 `research-design/` 后再开始摄入。用户已有自己的框架时以用户框架为准；用户暂时没有思路时，允许先建库，并在每个模块完成时根据已摄入材料主动归纳可行方向、提出建议。**不要把其他项目的分析框架、案例分类或标签体系套到新项目上。**
+访谈中关于论文本身的问题（交付物、读者、问题意识、材料、验收标准）与写论文的五问一致，见 `law-paper-writing` 的 `references/requirement-decomposition.md`；答案写入 `research-design/` 后再开始摄入。用户已有自己的框架时以用户框架为准；用户暂时没有思路时，允许先建库，并在每个模块完成时根据已摄入材料主动归纳可行方向、提出建议。**不要把其他项目的分析框架、案例分类或标签体系套到新项目上。**
 
 ### 5. 来源与分析分开，宁缺毋滥
 
@@ -78,7 +78,7 @@ metadata:
 6. **案例**：再摄入案例，挂到已有概念上；
 7. **法规范**：按效力层级摄入相关条文；
 8. **比较层与网络**：`comparisons/` 跨案比较、论文—案例—法规范互联；
-9. 之后才进入论文写作（交给 `chinese-law-paper-writing`）。
+9. 之后才进入论文写作（交给 `law-paper-writing`）。
 
 用户问“先摄入论文还是案例”时，建议**先论文**：论文搭建概念骨架，案例才有可挂接的概念页；论文也揭示哪些维度值得打标签，避免返工。
 

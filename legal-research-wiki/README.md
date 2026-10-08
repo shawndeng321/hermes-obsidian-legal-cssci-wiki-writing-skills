@@ -4,7 +4,7 @@
 
 > 运行时入口是 [`SKILL.md`](SKILL.md)。本页解决“什么时候用、怎么开始、如何验收”；详细规则按需阅读 `references/`。
 >
-> **当前版本：v5.0.1（2026-09）**。通用化重写：去除特定研究项目的分类、编号和框架，改为“先问研究思路、按项目设计”的通用流程；二十余份会话记录合并为按主题组织的参考文件；运行说明改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
+> **当前版本：v2610.9（2026-10-09；机器字段 2610.9.0）**。通用化重写：去除特定研究项目的分类、编号和框架，改为“先问研究思路、按项目设计”的通用流程；二十余份会话记录合并为按主题组织的参考文件；运行说明改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 自动检查、四种提示选择、本地修改保护与回滚说明见[根 README 的自动更新章节](../README.md#自动更新)。
 
@@ -83,7 +83,7 @@ hermes skills install shawndeng321/legal-academic-research-skills/legal-research
 ## 配套技能与脚本
 
 - 维护与修复：[legal-wiki-audit-repair](../legal-wiki-audit-repair/)
-- 论文写作：[chinese-law-paper-writing](../chinese-law-paper-writing/)
+- 论文写作：[law-paper-writing](../law-paper-writing/)
 - 批量 PDF 提取：`scripts/batch_extract_papers.py`；论文摄入与质量修复：`references/pdf-paper-ingestion.md`
 - 案例摄入与汇编解析：`references/case-ingestion.md`、`references/docx-case-parsing-lessons.md`
 - 法规范层级与摄入：`references/legal-norm-hierarchy-and-reply-ingestion.md`

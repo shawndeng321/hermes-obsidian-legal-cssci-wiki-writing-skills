@@ -4,7 +4,7 @@
 
 > 运行时入口是 [`SKILL.md`](SKILL.md)。本页提供模式选择、安装和安全使用方式；批量操作细则见 `references/`。
 >
-> **当前版本：v5.0.1（2026-09）**。通用化：去除特定项目的基线计数与会话数据，批量操作手册重写为通用流程（表格别名统一为 `\|`），检修脚本改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
+> **当前版本：v2610.9（2026-10-09；机器字段 2610.9.0）**。通用化：去除特定项目的基线计数与会话数据，批量操作手册重写为通用流程（表格别名统一为 `\|`），检修脚本改为宿主中立，Hermes、Claude Code、Codex 通用。变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 自动检查、四种提示选择、本地修改保护与回滚说明见[根 README 的自动更新章节](../README.md#自动更新)。
 
@@ -92,7 +92,7 @@ hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-aud
 ## 与其他技能配合
 
 - 建库与摄入：[legal-research-wiki](../legal-research-wiki/)
-- 论文写作：[chinese-law-paper-writing](../chinese-law-paper-writing/)
+- 论文写作：[law-paper-writing](../law-paper-writing/)
 
 ## 适用范围与边界
 

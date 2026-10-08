@@ -30,7 +30,8 @@ import tempfile
 import zipfile
 import os
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.enum.style import WD_STYLE_TYPE
+from docx.shared import Pt, RGBColor, Mm
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from lxml import etree
@@ -71,44 +72,58 @@ STYLE_FALLBACKS = {
 def configure_cli():
     """Resolve paths from CLI while preserving the historical config block."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--src", help="template DOCX path; otherwise use SRC above")
+    template_mode = parser.add_mutually_exclusive_group()
+    template_mode.add_argument("--src", help="template DOCX path; otherwise use SRC above")
+    template_mode.add_argument("--no-template", action="store_true",
+                               help="explicitly accept reversible provisional A4 / 25.4 mm pages")
     parser.add_argument("--md", dest="md_path", help="draft Markdown path; otherwise use MD above")
     parser.add_argument("--dst", dest="dst_path", help="output DOCX path; otherwise use DST above")
     parser.add_argument("--tmp", dest="tmp_path", help="optional working DOCX path")
     parser.add_argument("--red-para-start", action="append", default=None,
                         help="paragraph prefix to mark red; repeatable")
-    parser.add_argument("--red-footnote", type=int, action="append", default=None,
-                        help="footnote ID to mark red; repeatable")
+    parser.add_argument("--red-footnote", action="append", default=None,
+                        help="Markdown source ID to mark red at every occurrence; repeatable")
     parser.add_argument("--red-split-mark", default=None, help="suffix marker to mark red in one footnote")
-    parser.add_argument("--red-footnote-id", type=int, default=None)
+    parser.add_argument("--red-footnote-id", default=None, help="Markdown source ID for the red suffix")
     args = parser.parse_args()
-    src = args.src or SRC
+    src = None if args.no_template else args.src or SRC
     md_path = args.md_path or MD
     dst_path = args.dst_path or DST
-    if any(value.startswith("/path/to/") for value in (src, md_path, dst_path)):
-        parser.error("provide --src, --md and --dst, or replace the SRC/MD/DST config values")
-    src = os.path.abspath(os.path.expanduser(src))
+    if any(value and value.startswith("/path/to/") for value in (src, md_path, dst_path)):
+        parser.error("provide --src (or --no-template), --md and --dst, or replace the config values")
+    src = os.path.abspath(os.path.expanduser(src)) if src else None
     md_path = os.path.abspath(os.path.expanduser(md_path))
     dst_path = os.path.abspath(os.path.expanduser(dst_path))
-    if not os.path.isfile(src):
+    if src and not os.path.isfile(src):
         parser.error(f"template DOCX does not exist: {src}")
     if not os.path.isfile(md_path):
         parser.error(f"draft Markdown does not exist: {md_path}")
-    if os.path.abspath(src) == dst_path:
+    if src == dst_path:
         parser.error("output path must differ from the template DOCX")
+    if dst_path == md_path:
+        parser.error("output path must differ from the draft Markdown")
+    if os.path.lexists(dst_path):
+        parser.error(f"output already exists; choose a new versioned path: {dst_path}")
     if not os.path.isdir(os.path.dirname(dst_path)):
         parser.error(f"output directory does not exist: {os.path.dirname(dst_path)}")
     if args.tmp_path:
         tmp_path = os.path.abspath(os.path.expanduser(args.tmp_path))
+        if tmp_path in (src, md_path, dst_path):
+            parser.error("working path must differ from template, Markdown and output")
+        if os.path.lexists(tmp_path):
+            parser.error(f"working file already exists: {tmp_path}")
+        if not os.path.isdir(os.path.dirname(tmp_path)):
+            parser.error(f"working directory does not exist: {os.path.dirname(tmp_path)}")
         remove_tmp = False
     else:
-        fd, tmp_path = tempfile.mkstemp(prefix="md2docx-", suffix=".docx", dir=os.path.dirname(dst_path))
-        os.close(fd)
+        tmp_path = None
         remove_tmp = True
     red_para_starts = tuple(args.red_para_start) if args.red_para_start is not None else RED_PARA_STARTS
     red_footnotes = tuple(args.red_footnote) if args.red_footnote is not None else RED_FOOTNOTES
     red_split_mark = args.red_split_mark if args.red_split_mark is not None else RED_SPLIT_MARK
     red_footnote_id = args.red_footnote_id if args.red_footnote_id is not None else RED_FOOTNOTE_ID
+    red_footnotes = tuple(str(key) for key in red_footnotes)
+    red_footnote_id = str(red_footnote_id)
     return src, md_path, dst_path, tmp_path, remove_tmp, red_para_starts, red_footnotes, red_split_mark, red_footnote_id
 
 
@@ -116,18 +131,101 @@ SRC, MD, DST, TMP, REMOVE_TMP, RED_PARA_STARTS, RED_FOOTNOTES, RED_SPLIT_MARK, R
 
 # ==========================================
 
-shutil.copy(SRC, TMP)
-doc = Document(TMP)
+text = open(MD, encoding="utf-8").read()
+parts = re.split(r"(?m)^##[ \t]+脚注[ \t]*\r?$", text, maxsplit=1)
+body_md, fn_md = parts[0], parts[1] if len(parts) > 1 else ""
+source_notes = {}
+
+
+def register_note(key, content):
+    if key in source_notes:
+        raise SystemExit(f"重复脚注定义: {key}")
+    source_notes[key] = content.strip()
+
+
+def extract_definitions(part, legacy_section=False):
+    lines = part.splitlines()
+    body_lines = []
+    index = 0
+    while index < len(lines):
+        definition = re.match(r"^\[\^([^\]\s]+)\]:[ \t]*(.*)$", lines[index])
+        if not definition and legacy_section:
+            definition = re.match(r"^\[(\d+)\][ \t]*(.*)$", lines[index])
+        if not definition:
+            body_lines.append(lines[index])
+            index += 1
+            continue
+        key, first_line = definition.groups()
+        paragraphs = [first_line.strip()]
+        index += 1
+        while index < len(lines):
+            if lines[index].startswith(("    ", "\t")):
+                continuation = lines[index].strip()
+                paragraphs[-1] += (" " if paragraphs[-1] else "") + continuation
+                index += 1
+            elif (not lines[index].strip() and index + 1 < len(lines)
+                  and lines[index + 1].startswith(("    ", "\t"))):
+                paragraphs.append("")
+                index += 1
+            else:
+                break
+        register_note(key, "\n\n".join(paragraphs))
+    return "\n".join(body_lines)
+
+
+extract_definitions(fn_md, legacy_section=True)
+body_md = extract_definitions(body_md)
+fn_map = {}
+fn_sources = {}
+REFERENCE_RE = re.compile(r"\[\^([^\]\s]+)\]|\[(?:脚注)?(\d+)\]")
+referenced_sources = {match.group(1) or match.group(2) for match in REFERENCE_RE.finditer(body_md)}
+missing_sources = referenced_sources - source_notes.keys()
+if missing_sources:
+    raise SystemExit(f"缺失脚注定义: {', '.join(sorted(missing_sources))}")
+orphan_sources = source_notes.keys() - referenced_sources
+if orphan_sources:
+    raise SystemExit(f"孤立脚注定义: {', '.join(sorted(orphan_sources))}")
+
+if TMP is None:
+    fd, TMP = tempfile.mkstemp(prefix="md2docx-", suffix=".docx", dir=os.path.dirname(DST))
+    os.close(fd)
+else:
+    with open(TMP, "xb"):
+        pass
+if SRC:
+    shutil.copy(SRC, TMP)
+    doc = Document(TMP)
+else:
+    doc = Document()
+    section = doc.sections[0]
+    section.page_width, section.page_height = Mm(210), Mm(297)
+    section.top_margin = section.bottom_margin = Mm(25.4)
+    section.left_margin = section.right_margin = Mm(25.4)
+    print("未提供样稿：临时页面 A4（210 × 297 mm），四边页边距 25.4 mm；均为暂定，"
+          "不代表期刊要求。取得模板后用 --src 重新生成新版本即可撤销。")
 body = doc.element.body
 for child in list(body):
     if child.tag != qn('w:sectPr'):
         body.remove(child)
 
-text = open(MD, encoding="utf-8").read()
-body_md, _, fn_md = text.partition("## 脚注")
-fn_map = {}
-for m in re.finditer(r"^\[(\d+)\]\s*(.+)$", fn_md, re.M):
-    fn_map[int(m.group(1))] = m.group(2).strip()
+EMPHASIS_RE = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)|(?<![\w_])_([^_\n]+)_(?![\w_])")
+
+
+def inline_spans(text):
+    """Parse explicit single-marker emphasis, never infer foreign-language ranges."""
+    end = 0
+    references = [match.span() for match in REFERENCE_RE.finditer(text)]
+    for match in EMPHASIS_RE.finditer(text):
+        if any(start <= match.start() < stop or start < match.end() <= stop
+               for start, stop in references):
+            continue
+        if match.start() > end:
+            yield text[end:match.start()], False, end
+        group = 1 if match.group(1) is not None else 2
+        yield match.group(group), True, match.start(group)
+        end = match.end()
+    if end < len(text) or not text:
+        yield text[end:], False, end
 
 def set_run_font(run, east, west, size_pt, bold=False, red=False):
     run.font.name = west
@@ -141,6 +239,27 @@ def set_run_font(run, east, west, size_pt, bold=False, red=False):
         rFonts = OxmlElement('w:rFonts')
         rPr.insert(0, rFonts)
     rFonts.set(qn('w:eastAsia'), east)
+
+
+def ensure_footnote_style(style_id, name, style_type):
+    for style in doc.styles:
+        if (style.style_id == style_id or style.name == name) and style.type == style_type:
+            return style
+    names = {style.name for style in doc.styles}
+    if name in names or any(style.style_id == style_id for style in doc.styles):
+        name = f"Generated {name}"
+        while name in names:
+            name = f"Generated {name}"
+    style = doc.styles.add_style(name, style_type)
+    if style_type == WD_STYLE_TYPE.CHARACTER:
+        style.font.superscript = True
+    else:
+        style.base_style = doc.styles["Normal"]
+    return style
+
+
+FOOTNOTE_TEXT_STYLE = ensure_footnote_style("FootnoteText", "Footnote Text", WD_STYLE_TYPE.PARAGRAPH)
+FOOTNOTE_REF_STYLE = ensure_footnote_style("FootnoteReference", "Footnote Reference", WD_STYLE_TYPE.CHARACTER)
 
 _missing_styles = set()
 
@@ -167,11 +286,38 @@ def add_para(style_name=None):
     return p
 
 
-def add_run(p, text, font_key, red=False):
+def add_plain_run(p, content, font_key, red=False, italic=False):
     east, west, size = FONTS[font_key]
-    r = p.add_run(text)
-    set_run_font(r, east, west, size, red=red)
-    return r
+    run = p.add_run(content)
+    set_run_font(run, east, west, size, red=red)
+    run.font.italic = italic
+    return run
+
+
+def add_reference(p, key, font_key, red=False):
+    fid = len(fn_map) + 1
+    fn_map[fid] = source_notes[key]
+    fn_sources[fid] = key
+    run = add_plain_run(p, "", font_key, red=red)
+    rStyle = OxmlElement("w:rStyle")
+    rStyle.set(qn("w:val"), FOOTNOTE_REF_STYLE.style_id)
+    run._element.get_or_add_rPr().insert(0, rStyle)
+    run.font.superscript = True
+    reference = OxmlElement("w:footnoteReference")
+    reference.set(qn("w:id"), str(fid))
+    run._element.append(reference)
+
+
+def add_run(p, text, font_key, red=False):
+    for content, italic, _ in inline_spans(text):
+        end = 0
+        for match in REFERENCE_RE.finditer(content):
+            if match.start() > end:
+                add_plain_run(p, content[end:match.start()], font_key, red=red, italic=italic)
+            add_reference(p, match.group(1) or match.group(2), font_key, red=red)
+            end = match.end()
+        if end < len(content) or not content:
+            add_plain_run(p, content[end:], font_key, red=red, italic=italic)
 
 
 def add_labeled(p, s, label_re):
@@ -223,12 +369,7 @@ for line in body_md.split("\n"):
     else:                                                               # 正文
         red_para = bool(RED_PARA_STARTS) and s.startswith(RED_PARA_STARTS)
         p = add_para("正文1")
-        for idx, part in enumerate(re.split(r"\[(?:脚注)?(\d+)\]", s)):
-            if idx % 2 == 0:
-                if part:
-                    add_run(p, part, "body", red=red_para)
-            else:
-                add_run(p, f"〔FNREF_{part}〕", "body", red=red_para)
+        add_run(p, s, "body", red=red_para)
 
 doc.save(TMP)
 
@@ -237,12 +378,13 @@ W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 def w(tag):
     return f"{{{W}}}{tag}"
 
-def make_text_run(content, red=False):
+def make_text_run(content, red=False, italic=False):
     r = etree.Element(w("r"))
     rPr = etree.SubElement(r, w("rPr"))
     fn_east, fn_west, fn_size = FONTS["footnote"]
     etree.SubElement(rPr, w("rFonts"), {w("ascii"): fn_west, w("hAnsi"): fn_west, w("eastAsia"): fn_east})
     half_points = str(int(round(fn_size * 2)))
+    etree.SubElement(rPr, w("i"), {w("val"): "1" if italic else "0"})
     etree.SubElement(rPr, w("sz"), {w("val"): half_points})
     etree.SubElement(rPr, w("szCs"), {w("val"): half_points})
     if red:
@@ -251,6 +393,20 @@ def make_text_run(content, red=False):
     t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
     t.text = content
     return r
+
+
+def make_text_runs(content, red=False, red_start=None):
+    runs = []
+    for text, italic, start in inline_spans(content):
+        if red_start is None or red:
+            runs.append(make_text_run(text, red=red, italic=italic))
+        else:
+            cut = max(0, min(len(text), red_start - start))
+            if cut:
+                runs.append(make_text_run(text[:cut], italic=italic))
+            if cut < len(text):
+                runs.append(make_text_run(text[cut:], red=True, italic=italic))
+    return runs
 
 fn_root = etree.Element(w("footnotes"), nsmap={"w": W})
 sep = etree.SubElement(fn_root, w("footnote"), {w("type"): "separator", w("id"): "-1"})
@@ -264,34 +420,28 @@ etree.SubElement(etree.SubElement(cp, w("r")), w("continuationSeparator"))
 
 for fid in sorted(fn_map.keys()):
     fn = etree.SubElement(fn_root, w("footnote"), {w("id"): str(fid)})
-    p = etree.SubElement(fn, w("p"))
-    etree.SubElement(etree.SubElement(p, w("pPr")), w("pStyle"), {w("val"): "FootnoteText"})
-    r1 = etree.SubElement(p, w("r"))
-    etree.SubElement(etree.SubElement(r1, w("rPr")), w("rStyle"), {w("val"): "FootnoteReference"})
-    etree.SubElement(r1, w("footnoteRef"))
     content = fn_map[fid]
-    if fid in RED_FOOTNOTES:
-        p.append(make_text_run(content, red=True))
-    elif fid == RED_FOOTNOTE_ID and RED_SPLIT_MARK and RED_SPLIT_MARK in content:
-        head, _, tail = content.partition(RED_SPLIT_MARK)
-        p.append(make_text_run(head))
-        p.append(make_text_run(RED_SPLIT_MARK + tail, red=True))
-    else:
-        p.append(make_text_run(content))
+    red = fn_sources[fid] in RED_FOOTNOTES
+    red_start = (content.index(RED_SPLIT_MARK) if fn_sources[fid] == RED_FOOTNOTE_ID
+                 and RED_SPLIT_MARK and RED_SPLIT_MARK in content else None)
+    offset = 0
+    for index, paragraph in enumerate(content.split("\n\n")):
+        p = etree.SubElement(fn, w("p"))
+        etree.SubElement(etree.SubElement(p, w("pPr")), w("pStyle"), {w("val"): FOOTNOTE_TEXT_STYLE.style_id})
+        if index == 0:
+            r1 = etree.SubElement(p, w("r"))
+            etree.SubElement(etree.SubElement(r1, w("rPr")), w("rStyle"), {w("val"): FOOTNOTE_REF_STYLE.style_id})
+            etree.SubElement(r1, w("footnoteRef"))
+        local_start = red_start - offset if red_start is not None else None
+        p.extend(make_text_runs(paragraph, red=red, red_start=local_start))
+        offset += len(paragraph) + 2
 footnotes_xml = etree.tostring(fn_root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 zin = zipfile.ZipFile(TMP)
 items = {}
 for item in zin.infolist():
     data = zin.read(item.filename)
-    if item.filename == "word/document.xml":
-        xml = data.decode("utf-8")
-        xml2, n = re.subn(r"〔FNREF_(\d+)〕",
-                          lambda m: (f'<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr>'
-                                     f'<w:footnoteReference w:id="{m.group(1)}"/></w:r>'), xml)
-        print(f"占位符替换: {n}")
-        data = xml2.encode("utf-8")
-    elif item.filename == "word/footnotes.xml":
+    if item.filename == "word/footnotes.xml":
         data = footnotes_xml
     items[item.filename] = (item, data)
 zin.close()
@@ -331,7 +481,7 @@ if ct_name in items:
         })
         items[ct_name] = (items[ct_name][0], etree.tostring(ct_root, xml_declaration=True, encoding="UTF-8"))
 
-with zipfile.ZipFile(DST, "w", zipfile.ZIP_DEFLATED) as zout:
+with zipfile.ZipFile(DST, "x", zipfile.ZIP_DEFLATED) as zout:
     for fname, (info, data) in items.items():
         zout.writestr(info, data)
 

@@ -9,7 +9,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
-    "chinese-law-paper-writing",
+    "law-paper-writing",
     "legal-research-wiki",
     "legal-wiki-audit-repair",
 )
@@ -19,14 +19,14 @@ ALLOWED_FRONTMATTER_KEYS = {"name", "description", "license", "metadata"}
 # keep them short enough (<= 300) to stay within Hermes' routing budget.
 DESCRIPTION_MAX_LENGTH = 300
 DESCRIPTION_TRIGGERS = {
-    "chinese-law-paper-writing": ("CSSCI", "改稿", "期刊适配", "Not for"),
+    "law-paper-writing": ("CSSCI", "改稿", "期刊适配", "Not for"),
     "legal-research-wiki": ("建库", "摄入", "知识库查询", "legal-wiki-audit-repair"),
     "legal-wiki-audit-repair": ("updating its Bundle", "全库体检", "每日检修", "检查法学技能更新"),
 }
 EXPECTED_VERSIONS = {
-    "chinese-law-paper-writing": "6.0.1",
-    "legal-research-wiki": "5.0.1",
-    "legal-wiki-audit-repair": "5.0.1",
+    "law-paper-writing": "2610.9.0",
+    "legal-research-wiki": "2610.9.0",
+    "legal-wiki-audit-repair": "2610.9.0",
 }
 PROJECT_SPECIFIC_TERMS = (
     "工伤",
@@ -39,7 +39,7 @@ PROJECT_SPECIFIC_TERMS = (
     "~/.hermes/scripts",
 )
 MULTIMODAL_FILES = (
-    "chinese-law-paper-writing/references/multimodal-citation-format.md",
+    "law-paper-writing/references/multimodal-citation-format.md",
     "legal-research-wiki/references/multimodal-audio-ingest.md",
     "legal-research-wiki/references/multimodal-bulk-refs.md",
     "legal-research-wiki/references/multimodal-image-ingest.md",
@@ -318,10 +318,10 @@ class SkillCompatibilityTests(unittest.TestCase):
         readmes.extend(ROOT / skill_name / "README.md" for skill_name in SKILLS)
         combined = "\n".join(path.read_text(encoding="utf-8") for path in readmes)
         root_readme = readmes[0].read_text(encoding="utf-8")
-        paper_readme = (ROOT / "chinese-law-paper-writing" / "README.md").read_text(
+        paper_readme = (ROOT / "law-paper-writing" / "README.md").read_text(
             encoding="utf-8"
         )
-        paper_skill = (ROOT / "chinese-law-paper-writing" / "SKILL.md").read_text(
+        paper_skill = (ROOT / "law-paper-writing" / "SKILL.md").read_text(
             encoding="utf-8"
         )
         self.assertNotIn("Obisidian", root_readme)
@@ -356,8 +356,12 @@ class SkillCompatibilityTests(unittest.TestCase):
                 skill_readme = (ROOT / skill_name / "README.md").read_text(
                     encoding="utf-8"
                 )
-                self.assertIn(f"v{version}", root_readme)
-                self.assertIn(f"v{version}", skill_readme)
+                # 机器字段仍是三段；公开日期标签的首版省略当天序号 0。
+                public_tag = f"v{version.rsplit('.', 1)[0]}" if version.endswith(".0") else f"v{version}"
+                self.assertIn(public_tag, root_readme)
+                self.assertIn(public_tag, skill_readme)
+                self.assertIn(version, root_readme)
+                self.assertIn(version, skill_readme)
 
         for relative_path in MULTIMODAL_FILES:
             with self.subTest(path=relative_path):

@@ -17,7 +17,7 @@ analysis_status: in_progress
 - 只有“核验状态”为 `VERIFIED` 的行能进入最终稿；统计性主张在数据真正算出之前保持“待核”或“缺证据”，不编造比例。
 - “反方材料”一栏不能为空：没有反方的主张是辩护，不是论证。
 - 统计完成后同步更新三处：本矩阵（口径 → 数据）、研究设计（假说 → 已验证）、写作交接页（可执行 → 已完成）。
-- 写作阶段的论点表另见 `chinese-law-paper-writing` 的 `assets/templates/claim-evidence-matrix.md`。
+- 写作阶段的论点表另见 `law-paper-writing` 的 `assets/templates/claim-evidence-matrix.md`。
 
 ## 〈分析维度一〉
 

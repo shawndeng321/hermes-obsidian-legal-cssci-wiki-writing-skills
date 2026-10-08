@@ -2,7 +2,7 @@
 
 新建研究库，或把已有研究库做得更深之前，先用本访谈把需求问清楚，整理成一页《Wiki 设计书》（模板 `assets/templates/wiki-design-brief.md`），经用户确认后再定 SCHEMA、目录和模板。
 
-与写论文的五问分工：五问（`chinese-law-paper-writing` 的 `references/requirement-decomposition.md`）拆解“要写什么论文”；本访谈拆解“要建什么样的库来支撑研究”。两者可以在同一次对话中先后进行，五问的答案直接填进设计书的 A、B 两组。
+与写论文的五问分工：五问（`law-paper-writing` 的 `references/requirement-decomposition.md`）拆解“要写什么论文”；本访谈拆解“要建什么样的库来支撑研究”。两者可以在同一次对话中先后进行，五问的答案直接填进设计书的 A、B 两组。
 
 ## 一、提问规则
 

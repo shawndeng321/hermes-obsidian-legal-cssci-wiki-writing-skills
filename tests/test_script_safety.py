@@ -15,7 +15,7 @@ EXTRACT_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "batch_extract_paper
 CHECK_LINKS_SCRIPT = ROOT / "legal-research-wiki" / "scripts" / "check_wikilinks.py"
 SYNC_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "sync_paper_case_links.py"
 INSERT_NORM_SCRIPT = ROOT / "legal-wiki-audit-repair" / "scripts" / "insert_norm_sections.py"
-DOCX_SCRIPT = ROOT / "chinese-law-paper-writing" / "scripts" / "md2docx_footnotes.py"
+DOCX_SCRIPT = ROOT / "law-paper-writing" / "scripts" / "md2docx_footnotes.py"
 MULTIMODAL_AUDIT_SCRIPT = (
     ROOT / "legal-wiki-audit-repair" / "scripts" / "multimodal_audit.py"
 )

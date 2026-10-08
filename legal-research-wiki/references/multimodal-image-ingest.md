@@ -72,7 +72,7 @@ cross-link (≥2 `[[wikilinks]]`), update `index.md` + `log.md`.
 
 - Cite the image in page frontmatter: `sources: [raw/screenshots/<topic>.md]`.
 - Provenance markers on synthesized claims: `^[raw/screenshots/<topic>.md]` (per
-  `chinese-law-paper-writing` 技能的 `references/multimodal-citation-format.md` — the raw-note path is the traceable anchor).
+  `law-paper-writing` 技能的 `references/multimodal-citation-format.md` — the raw-note path is the traceable anchor).
 - To **display** the diagram in a Layer-2 page, copy the PNG to `raw/assets/<topic>.png` and
   embed `![[<topic>.png]]`. The source copy in `raw/screenshots/` stays untouched.
 

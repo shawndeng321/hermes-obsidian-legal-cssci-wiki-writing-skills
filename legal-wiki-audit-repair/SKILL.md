@@ -3,11 +3,11 @@ name: legal-wiki-audit-repair
 description: "Use when auditing or repairing a Chinese legal wiki. 法学研究Wiki全库体检、死链/YAML/来源/图谱检查、模板化检测、P0—P3整改台账、分批修复、批量重命名与链接迁移、每日检修; also for updating its Bundle（检查法学技能更新）. Read-only by default; writes only after the user confirms a scope."
 license: MIT
 metadata:
-  version: "5.0.1"
+  version: "2610.9.0"
   author: shawndeng321
   hermes:
     tags: [legal-wiki, audit, repair, obsidian, quality-control, batch, rename, wikilink, maintenance]
-    related_skills: [legal-research-wiki, chinese-law-paper-writing]
+    related_skills: [legal-research-wiki, law-paper-writing]
 ---
 
 # 法学研究 Wiki 排查与修复
@@ -30,21 +30,21 @@ metadata:
 对法学研究 Obsidian/LLM Wiki 做全库体检、问题分级、整改设计、分批修复和复核。关注的不只是 YAML、死链和文件数量，还要判断页面是否真正支持学术研究：来源能否追溯、案例分析是否套模板、论文—案例—概念—底稿关系是否具体、群案比较层是否存在、假说是否被写成事实。
 
 - 建库、摄入与页面规范 → `legal-research-wiki`（本技能的验收标准以它为准）；
-- 研究设计页审计中的五问方法 → `chinese-law-paper-writing` 的 `references/requirement-decomposition.md`；
+- 研究设计页审计中的五问方法 → `law-paper-writing` 的 `references/requirement-decomposition.md`；
 - 分析框架是**项目特定**的：审计时以该项目 `research-design/` 中用户确认的框架为准，不用通用模板或其他项目的框架去套。
 
 本技能自足。宿主另有通用 Wiki 或 Obsidian 技能时可以同时使用；规则冲突时，以当前 vault 的 `SCHEMA.md`、用户本轮明确要求和原始材料为最高优先级。
 
 ## 配套技能
 
-本技能与 `chinese-law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair` 同属一个技能包，可以单独安装使用。三个技能不一定在同一目录（例如 Hermes 可能把它们分放在不同分类子目录下），引用其他技能的文件时按**技能名**找到该技能再读取，不要假设相对路径。配套技能没有安装时，按下表“未安装时”一列处理，不要假装读取了不存在的文件；需要完整能力时，提示用户安装整个技能包。
+本技能与 `law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair` 同属一个技能包，可以单独安装使用。三个技能不一定在同一目录（例如 Hermes 可能把它们分放在不同分类子目录下），引用其他技能的文件时按**技能名**找到该技能再读取，不要假设相对路径。配套技能没有安装时，按下表“未安装时”一列处理，不要假装读取了不存在的文件；需要完整能力时，提示用户安装整个技能包。
 
 | 用到的内容 | 所在技能 | 未安装时 |
 |---|---|---|
 | 页面规范与验收标准、链接规则（`references/linking-and-cross-references.md`） | `legal-research-wiki` | 以当前 vault 的 `SCHEMA.md` 为准；链接规则按本技能 4.4 节 |
 | 死链检查脚本 `scripts/check_wikilinks.py` | `legal-research-wiki` | 用本技能的 `scripts/multimodal_audit.py`（含链接完整性检查） |
 | 全库审计与整改台账细则（`references/systematic-vault-audit-and-optimization-ledger.md`） | `legal-research-wiki` | 按本技能第四至八节执行 |
-| 研究设计页审计用的五问（`references/requirement-decomposition.md`） | `chinese-law-paper-writing` | 按本技能 5.5 节检查研究设计页 |
+| 研究设计页审计用的五问（`references/requirement-decomposition.md`） | `law-paper-writing` | 按本技能 5.5 节检查研究设计页 |
 
 ## 何时使用
 

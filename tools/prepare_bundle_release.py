@@ -5,17 +5,18 @@ import hashlib
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
-    "chinese-law-paper-writing",
+    "law-paper-writing",
     "legal-research-wiki",
     "legal-wiki-audit-repair",
 )
+LEGACY_SKILLS = ("chinese-law-paper-writing", *SKILLS[1:])
 BUNDLE_ID = "hermes-legal-research-skills"
 LOCK_NAME = "bundle-lock.json"
 IGNORED_NAMES = {"__pycache__", ".DS_Store"}
@@ -98,6 +99,16 @@ def build_lock(
 def _validate_semver(value: str, field: str) -> None:
     if not isinstance(value, str) or not SEMVER_RE.fullmatch(value):
         raise ValueError(f"invalid {field}: {value!r}")
+    first, second, _ = value.split(".")
+    if len(first) == 4:
+        major = int(first)
+        try:
+            if 2000 <= major <= 2099 and len(second) == 4:
+                date(major, int(second[:2]), int(second[2:]))
+            else:
+                date(2000 + major // 100, major % 100, int(second))
+        except ValueError as exc:
+            raise ValueError(f"invalid calendar {field}: {value!r}") from exc
 
 
 def _validate_archive_url(value: str) -> None:
@@ -120,7 +131,7 @@ def _load_json(path: Path) -> dict | None:
     return data
 
 
-def _normalize_release_input(root: Path, release: dict) -> dict:
+def _normalize_release_input(root: Path, release: dict, *, skill_names: tuple[str, ...] = SKILLS) -> dict:
     required = {"bundle_version", "published_at", "update_level", "summary", "changes", "archive_url"}
     missing = required - set(release)
     if missing:
@@ -147,8 +158,14 @@ def _normalize_release_input(root: Path, release: dict) -> dict:
 
     skills: dict[str, str] = {}
     files: dict[str, str] = {}
-    for skill_name in SKILLS:
+    other_writing_name = LEGACY_SKILLS[0] if skill_names == SKILLS else SKILLS[0]
+    other_writing_path = root / other_writing_name
+    if other_writing_path.exists() or other_writing_path.is_symlink():
+        raise ValueError(f"release contains an unsupported writing skill alias: {other_writing_name}")
+    for skill_name in skill_names:
         skill_dir = root / skill_name
+        if skill_dir.is_symlink():
+            raise ValueError(f"symlinked release Skill directory is not supported: {skill_name}")
         if not skill_dir.is_dir():
             raise ValueError(f"missing skill directory: {skill_name}")
         skill_md = skill_dir / "SKILL.md"
@@ -159,6 +176,8 @@ def _normalize_release_input(root: Path, release: dict) -> dict:
             raise ValueError(f"missing agents/openai.yaml: {skill_name}")
         skill_version = read_skill_version(skill_dir)
         _validate_semver(skill_version, f"{skill_name}.version")
+        if re.fullmatch(r"\d{4}\.\d{1,2}\.\d+", bundle_version) and skill_version != bundle_version:
+            raise ValueError(f"date release skill version must equal bundle_version: {skill_name}")
         skills[skill_name] = skill_version
         for relative_path, digest in _collect_skill_files_for_manifest(skill_dir).items():
             files[f"{skill_name}/{relative_path}"] = digest
@@ -167,7 +186,7 @@ def _normalize_release_input(root: Path, release: dict) -> dict:
     if release_skills is not None:
         if not isinstance(release_skills, dict):
             raise ValueError("skills must be a mapping")
-        if {str(key) for key in release_skills} != set(SKILLS):
+        if {str(key) for key in release_skills} != set(skill_names):
             raise ValueError("skills must match the managed skill set")
         for skill_name, skill_version in skills.items():
             if str(release_skills[skill_name]) != skill_version:
@@ -194,8 +213,9 @@ def _normalize_release_input(root: Path, release: dict) -> dict:
     }
 
 
-def build_manifest(root: Path, release: dict) -> dict:
-    manifest = _normalize_release_input(root, release)
+def build_manifest(root: Path, release: dict, *, legacy_baseline: bool = False) -> dict:
+    skill_names = LEGACY_SKILLS if legacy_baseline else SKILLS
+    manifest = _normalize_release_input(root, release, skill_names=skill_names)
 
     current_entry = {
         "bundle_version": manifest["bundle_version"],
@@ -241,8 +261,8 @@ def _write_locks(root: Path, release: dict) -> None:
         _write_json(skill_dir / LOCK_NAME, lock)
 
 
-def _check_locks(root: Path, bundle_version: str) -> bool:
-    for skill_name in SKILLS:
+def _check_locks(root: Path, bundle_version: str, *, skill_names: tuple[str, ...] = SKILLS) -> bool:
+    for skill_name in skill_names:
         skill_dir = root / skill_name
         expected = build_lock(
             skill_name,
@@ -270,6 +290,9 @@ def _resolve_release(root: Path, args: argparse.Namespace) -> dict:
         release = {}
     if args.bundle_version is not None:
         release["bundle_version"] = args.bundle_version
+        # A new release derives its skill identities/versions from the tree;
+        # the previous manifest remains the history/check baseline only.
+        release.pop("skills", None)
     if args.published_at is not None:
         release["published_at"] = args.published_at
     if args.update_level is not None:
@@ -301,6 +324,9 @@ def _resolve_release(root: Path, args: argparse.Namespace) -> dict:
 
 def _command_write(root: Path, args: argparse.Namespace) -> int:
     release = _resolve_release(root, args)
+    # Validate the whole input before writing even the first lock. The
+    # manifest is rebuilt after locks are written to include their hashes.
+    _normalize_release_input(root, release)
     _write_locks(root, release)
     manifest = build_manifest(root, release)
     _write_json(root / "bundle-release.json", manifest)
@@ -313,12 +339,18 @@ def _command_check(root: Path) -> int:
     if existing is None:
         print("bundle-release.json is missing", file=sys.stderr)
         return 1
+    existing_skills = existing.get("skills")
+    if not isinstance(existing_skills, dict) or set(existing_skills) not in (set(SKILLS), set(LEGACY_SKILLS)):
+        print("manifest skills must match a supported schema-1 skill set", file=sys.stderr)
+        return 1
+    legacy_baseline = set(existing_skills) == set(LEGACY_SKILLS)
+    skill_names = LEGACY_SKILLS if legacy_baseline else SKILLS
     release = _release_from_existing_manifest(existing)
     if "archive_url" in existing:
         release["archive_url"] = existing["archive_url"]
-    if not _check_locks(root, str(existing.get("bundle_version", ""))):
+    if not _check_locks(root, str(existing.get("bundle_version", "")), skill_names=skill_names):
         return 1
-    expected = build_manifest(root, release)
+    expected = build_manifest(root, release, legacy_baseline=legacy_baseline)
     if expected != existing:
         print("bundle-release.json differs from expected content", file=sys.stderr)
         return 1

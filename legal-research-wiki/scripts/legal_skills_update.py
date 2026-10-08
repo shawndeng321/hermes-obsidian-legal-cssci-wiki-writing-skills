@@ -16,6 +16,7 @@ import time
 import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import ContextManager
 from urllib.error import HTTPError, URLError
@@ -45,10 +46,12 @@ ALLOWED_DOWNLOAD_HOSTS = {
 
 BUNDLE_ID = "hermes-legal-research-skills"
 SKILLS = (
-    "chinese-law-paper-writing",
+    "law-paper-writing",
     "legal-research-wiki",
     "legal-wiki-audit-repair",
 )
+LEGACY_WRITING_NAME = "chinese-law-paper-writing"
+LEGACY_SKILLS = (LEGACY_WRITING_NAME, *SKILLS[1:])
 STATE_FILE_NAME = "state.json"
 LOCK_FILE_NAME = "operation.lock"
 SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
@@ -71,6 +74,10 @@ class ArchiveError(RuntimeError):
     """Raised when an update archive or staged bundle is unsafe or invalid."""
 
 
+class MigrationRequiredError(ArchiveError):
+    """Raised before writes when host-managed naming cannot migrate safely."""
+
+
 @dataclass(frozen=True)
 class FetchResult:
     manifest: dict | None
@@ -85,6 +92,24 @@ def parse_semver(value: str) -> tuple[int, int, int]:
     if not match:
         raise ValueError(f"invalid semantic version: {value!r}")
     return tuple(int(part) for part in match.groups())
+
+
+def version_sort_key(value: str) -> tuple[int, ...]:
+    """Compare calendar releases across YYYY.MMDD and YYMM.DD lineages.
+
+    Keep parse_semver's historical numeric contract unchanged. Ordinary
+    semantic versions predate calendar releases; date spellings for the same
+    day compare equally, with the third component ordering daily revisions.
+    """
+    major, minor, revision = parse_semver(value)
+    first, second, _ = value.split(".")
+    if len(first) == 4:
+        if 2000 <= major <= 2099 and len(second) == 4:
+            released = date(major, minor // 100, minor % 100)
+        else:
+            released = date(2000 + major // 100, major % 100, minor)
+        return (1, released.toordinal(), revision)
+    return (0, major, minor, revision)
 
 
 def _validate_history(history: object, current_version: str) -> list[dict]:
@@ -146,7 +171,7 @@ def validate_manifest(data: object) -> dict:
         raise ValueError("manifest changes must be a list[str]")
 
     skills = data["skills"]
-    if not isinstance(skills, dict) or set(skills) != set(SKILLS):
+    if not isinstance(skills, dict) or set(skills) not in (set(SKILLS), set(LEGACY_SKILLS)):
         raise ValueError("manifest skills must match the managed skill set")
     for skill_version in skills.values():
         parse_semver(skill_version)
@@ -169,7 +194,7 @@ def validate_manifest(data: object) -> dict:
     for path, digest in files.items():
         if not isinstance(path, str) or not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
             raise ValueError("manifest files must map paths to SHA256 values")
-    for skill_name in SKILLS:
+    for skill_name in skills:
         for required_path in ("SKILL.md", "agents/openai.yaml"):
             if f"{skill_name}/{required_path}" not in files:
                 raise ValueError(f"manifest files missing {skill_name}/{required_path}")
@@ -192,16 +217,18 @@ def _safe_relative_path(value: object, *, label: str) -> PurePosixPath:
     return PurePosixPath(*parts)
 
 
-def _checked_manifest_files(manifest: dict) -> tuple[dict, dict[str, str]]:
+def _checked_manifest_files(manifest: dict, *, require_current: bool = False) -> tuple[dict, dict[str, str]]:
     try:
         checked = validate_manifest(manifest)
     except (TypeError, ValueError) as exc:
         raise ArchiveError(f"invalid checked manifest: {exc}") from exc
+    if require_current and set(checked["skills"]) != set(SKILLS):
+        raise ArchiveError("legacy manifests are read-only baselines; staged releases must use law-paper-writing")
     files: dict[str, str] = {}
     casefolded: set[str] = set()
     for raw_path, digest in checked["files"].items():
         path = _safe_relative_path(raw_path, label="manifest path")
-        if path.parts[0] not in SKILLS:
+        if path.parts[0] not in checked["skills"]:
             raise ArchiveError(f"manifest path is outside managed Skills: {raw_path}")
         normalized = path.as_posix()
         folded = normalized.casefold()
@@ -305,7 +332,7 @@ def _validate_archive_directory(
     bundle: zipfile.ZipFile,
     manifest: dict,
 ) -> tuple[tuple[str, ...], list[tuple[zipfile.ZipInfo, PurePosixPath, bool]]]:
-    checked, manifest_files = _checked_manifest_files(manifest)
+    checked, manifest_files = _checked_manifest_files(manifest, require_current=True)
     infos = bundle.infolist()
     if len(infos) > MAX_ARCHIVE_FILES:
         raise ArchiveError("archive contains too many entries")
@@ -455,9 +482,12 @@ def _walk_staged_files(bundle_root: Path) -> dict[str, Path]:
 
 
 def verify_staged_bundle(bundle_root: Path, manifest: dict) -> None:
-    checked, manifest_files = _checked_manifest_files(manifest)
+    checked, manifest_files = _checked_manifest_files(manifest, require_current=True)
     if bundle_root.is_symlink() or not bundle_root.is_dir():
         raise ArchiveError("staged bundle root is missing or unsafe")
+    legacy_path = bundle_root / LEGACY_WRITING_NAME
+    if legacy_path.exists() or legacy_path.is_symlink():
+        raise ArchiveError("staged releases must not contain the legacy writing skill directory")
     for skill_name in SKILLS:
         skill_root = bundle_root / skill_name
         if skill_root.is_symlink() or not skill_root.is_dir():
@@ -554,14 +584,23 @@ def resolve_skill_dirs(
 
     A Skill normally lives at ``skills_root/<name>``. Some hosts group Skills
     into one level of category folders (Hermes: ``skills/research/<name>``),
-    so a Skill missing at the top level is looked up one level down. Finding
-    the same Skill twice is an error: updating one copy would leave a stale
-    duplicate that the host could still load.
+    so both levels are inspected. The canonical writing identity can resolve
+    to its legacy directory until a transaction migrates it in the same parent.
+    Finding duplicate copies or both naming generations is an error: updating
+    one copy would leave a stale duplicate that the host could still load.
     """
     skills_root = Path(skills_root)
     categories: list[Path] = []
+    managed_names = set(skill_names)
+    if SKILLS[0] in managed_names:
+        managed_names.add(LEGACY_WRITING_NAME)
     if skills_root.is_dir() and not skills_root.is_symlink():
         for entry in sorted(skills_root.iterdir()):
+            if entry.is_symlink() and any(
+                (entry / name).exists() or (entry / name).is_symlink()
+                for name in managed_names
+            ):
+                raise ArchiveError(f"Skill category directory is a symlink: {entry}")
             if (
                 entry.name.startswith(".")
                 or entry.is_symlink()
@@ -572,24 +611,19 @@ def resolve_skill_dirs(
             categories.append(entry)
     resolved: dict[str, Path] = {}
     for name in skill_names:
-        direct = skills_root / name
-        nested = [
-            category / name
-            for category in categories
-            if (category / name).is_symlink() or (category / name).exists()
+        aliases = (name, LEGACY_WRITING_NAME) if name == SKILLS[0] else (name,)
+        present = [
+            parent / alias
+            for parent in (skills_root, *categories)
+            for alias in aliases
+            if (parent / alias).is_symlink() or (parent / alias).exists()
         ]
-        direct_present = direct.is_symlink() or direct.exists()
-        if direct_present and nested:
+        if len(present) > 1:
             raise ArchiveError(
                 f"Skill is installed more than once: {name} "
-                f"({direct} and {', '.join(str(path) for path in nested)})"
+                f"({', '.join(str(path) for path in present)})"
             )
-        if len(nested) > 1:
-            raise ArchiveError(
-                f"Skill is installed more than once: {name} "
-                f"({', '.join(str(path) for path in nested)})"
-            )
-        resolved[name] = nested[0] if nested else direct
+        resolved[name] = present[0] if present else skills_root / name
     return resolved
 
 
@@ -601,15 +635,13 @@ def _installed_path(skill_dirs: Mapping[str, Path], relative: str) -> Path:
 
 def inspect_installation(skills_root: Path, manifest: dict) -> dict:
     checked, _ = _checked_manifest_files(manifest)
-    skill_dirs = resolve_skill_dirs(skills_root)
+    skill_dirs = resolve_skill_dirs(skills_root, tuple(checked["skills"]))
     modified: list[str] = []
     deleted: list[str] = []
     added: list[str] = []
     missing_skills: list[str] = []
 
-    for skill_name in SKILLS:
-        if skill_name not in checked["skills"]:
-            continue
+    for skill_name in checked["skills"]:
         skill_root = skill_dirs[skill_name]
         if skill_root.is_symlink() or not skill_root.is_dir():
             missing_skills.append(skill_name)
@@ -624,7 +656,7 @@ def inspect_installation(skills_root: Path, manifest: dict) -> dict:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             modified.append(lock_relative)
             continue
-        expected = _valid_local_lock(lock, skill_name)
+        expected = _valid_local_lock(lock, skill_root.name)
         if expected is None:
             modified.append(lock_relative)
             continue
@@ -731,11 +763,19 @@ def _paths_overlap(first: Path, second: Path) -> bool:
     )
 
 
+def _reject_symlink_ancestors(path: Path, label: str) -> None:
+    absolute = path.absolute()
+    if any(parent.is_symlink() for parent in (absolute, *absolute.parents)):
+        raise ArchiveError(f"{label} contains a symlink")
+
+
 def _validate_transaction_path_separation(
     skills_root: Path,
     staged_root: Path,
     state_root: Path,
 ) -> None:
+    for label, path in (("Skills root", skills_root), ("staging root", staged_root), ("state root", state_root)):
+        _reject_symlink_ancestors(path, label)
     resolved_skills = skills_root.resolve(strict=False)
     resolved_staged = staged_root.resolve(strict=False)
     resolved_state = state_root.resolve(strict=False)
@@ -789,11 +829,11 @@ def detect_installation_mode(
             "Claude Code plugin installations are updated with "
             "`claude plugin update`, not by this updater"
         )
-    if skills_root.is_symlink():
-        raise ArchiveError("Skills root is a symlink")
+    _reject_symlink_ancestors(skills_root, "Skills root")
     if not skills_root.is_dir():
         raise ArchiveError(f"Skills root is not a directory: {skills_root}")
-    if (skills_root / ".git").exists():
+    if any((parent / ".git").exists() or (parent / ".git").is_symlink()
+           for parent in (skills_root, *skills_root.absolute().parents)):
         raise ArchiveError("Git worktree installations are not supported")
 
     seen: set[str] = set()
@@ -805,13 +845,13 @@ def detect_installation_mode(
         if len(relative.parts) != 1:
             raise ArchiveError(f"invalid Skill name: {raw_name}")
         skill_root = resolve_skill_dirs(skills_root, (raw_name,))[raw_name]
-        if skill_root.is_symlink():
-            raise ArchiveError(f"Skill directory is a symlink: {raw_name}")
+        _reject_symlink_ancestors(skill_root, f"Skill directory {raw_name}")
         if not skill_root.exists():
             continue
         if not skill_root.is_dir():
             raise ArchiveError(f"Skill path is not a directory: {raw_name}")
-        if (skill_root / ".git").exists():
+        if any((parent / ".git").exists() or (parent / ".git").is_symlink()
+               for parent in (skill_root, *skill_root.absolute().parents)):
             raise ArchiveError(f"Git worktree Skill is not supported: {raw_name}")
     return "source-copy"
 
@@ -871,9 +911,9 @@ def _rollback_source_transaction(
     if skill_dirs is None:
         skill_dirs = {name: skills_root / name for name in SKILLS}
     for skill_name in installed_names:
-        _remove_tree(skill_dirs[skill_name])
+        _remove_tree(skill_dirs[skill_name].with_name(skill_name))
     for skill_name in SKILLS:
-        backup_skill = backup_root / skill_name
+        backup_skill = backup_root / skill_dirs[skill_name].name
         if backup_skill.is_dir():
             target = skill_dirs[skill_name]
             _remove_tree(target)
@@ -891,6 +931,7 @@ def _apply_source_transaction_locked(
     fault_hook,
 ) -> dict:
     detect_installation_mode(skills_root, SKILLS)
+    _check_hub_migration(skills_root, source_copy=True)
     if staged_root.is_symlink() or not staged_root.is_dir():
         raise ArchiveError("staged bundle root is missing or unsafe")
     if os.stat(skills_root).st_dev != os.stat(staged_root).st_dev:
@@ -915,6 +956,7 @@ def _apply_source_transaction_locked(
 
     skill_dirs = resolve_skill_dirs(skills_root)
     worker_path = _copy_worker_script(state_root)
+    target_dirs = {name: path.with_name(name) for name, path in skill_dirs.items()}
     backup_root = state_root / "backups" / (
         time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f"-{time.time_ns()}"
     )
@@ -928,26 +970,32 @@ def _apply_source_transaction_locked(
         "skill_paths": {
             name: str(path.resolve(strict=False)) for name, path in skill_dirs.items()
         },
+        "target_paths": {
+            name: str(path.resolve(strict=False)) for name, path in target_dirs.items()
+        },
+        "backup_paths": {name: str(backup_root / path.name) for name, path in skill_dirs.items()},
         "staged_root": str(staged_root.resolve()),
         "worker": str(worker_path),
     }
     for skill_name in SKILLS:
         source = skill_dirs[skill_name]
         if source.is_dir() and not source.is_symlink():
-            shutil.copytree(source, backup_root / skill_name, symlinks=True)
+            shutil.copytree(source, backup_root / source.name, symlinks=True)
     _write_transaction(transaction_path, transaction)
 
     installed_names: set[str] = set()
     try:
         for skill_name in SKILLS:
-            target = skill_dirs[skill_name]
+            target = target_dirs[skill_name]
             staged_skill = staged_root / skill_name
-            _remove_tree(target)
-            os.replace(staged_skill, target)
             installed_names.add(skill_name)
+            _remove_tree(skill_dirs[skill_name])
+            os.replace(staged_skill, target)
             if fault_hook is not None:
                 fault_hook(skill_name)
         _verify_installed_bundle(skills_root, checked)
+        transaction["status"] = "updated"
+        _write_transaction(transaction_path, transaction)
     except Exception as exc:
         try:
             _rollback_source_transaction(
@@ -975,8 +1023,6 @@ def _apply_source_transaction_locked(
                 "message": str(rollback_error),
             }
 
-    transaction["status"] = "updated"
-    _write_transaction(transaction_path, transaction)
     return {
         "status": "updated",
         "fatal": False,
@@ -1005,6 +1051,12 @@ def apply_source_transaction(
             staged_root,
             state_root,
         )
+        detect_installation_mode(skills_root, SKILLS)
+        _check_hub_migration(skills_root, source_copy=True)
+        # Do not inspect a staging tree being consumed by a locked worker.
+        # First-time transactions still reject invalid staging before writes.
+        if not state_root.exists():
+            verify_staged_bundle(staged_root, manifest)
         if state_root.is_symlink():
             raise ArchiveError("state root is a symlink")
         state_root.mkdir(parents=True, exist_ok=True)
@@ -1020,10 +1072,35 @@ def apply_source_transaction(
             )
     except LockBusyError:
         return {"status": "busy", "fatal": False}
+    except MigrationRequiredError as exc:
+        return {"status": "migration_required", "fatal": False, "message": str(exc)}
     except ArchiveError as exc:
         return {"status": "rejected", "fatal": False, "message": str(exc)}
     except (OSError, ValueError) as exc:
         return {"status": "failed", "fatal": True, "message": str(exc)}
+
+
+def _check_hub_migration(
+    skills_root: Path, lock_path: Path | None = None, *, source_copy: bool = False
+) -> None:
+    """Never rename source directories while leaving a stale Hub registration."""
+    path = lock_path if lock_path is not None else skills_root / ".hub" / "lock.json"
+    if not path.exists() and not path.is_symlink():
+        return
+    _reject_symlink_ancestors(path, "Hermes Hub lock")
+    lock = read_hermes_lock(path)
+    installed = lock.get("installed")
+    if not isinstance(installed, dict):
+        raise ArchiveError("Hermes Hub lock has no installed entries")
+    if LEGACY_WRITING_NAME in installed or (source_copy and set(installed).intersection(SKILLS)):
+        raise MigrationRequiredError(
+            "Hermes Hub-managed skills need a one-time source migration or reinstall. "
+            "Back up the skill directories and Hub lock; use the host's supported "
+            "uninstall/reinstall workflow, or explicitly convert to an unmanaged "
+            "source-copy installation before applying the NEW staged updater. "
+            "Do not delete the Hub lock or run an old-name `hermes skills update` "
+            "and claim that it renamed the skill."
+        )
 
 
 def read_hermes_lock(lock_path: Path) -> dict:
@@ -1286,6 +1363,7 @@ def _apply_hermes_transaction_locked(
     runner,
     allow_local_changes: bool,
 ) -> dict:
+    _check_hub_migration(skills_root, lock_path)
     lock_before = lock_path.read_bytes()
     lock_data = read_hermes_lock(lock_path)
     detected = detect_hermes_bundle(lock_data, skills_root)
@@ -1436,6 +1514,8 @@ def apply_hermes_transaction(
     lock_path = Path(lock_path)
     state_root = Path(state_root)
     try:
+        detect_installation_mode(skills_root, SKILLS)
+        _check_hub_migration(skills_root, lock_path)
         resolved_skills = skills_root.resolve(strict=False)
         resolved_state = state_root.resolve(strict=False)
         resolved_lock = lock_path.resolve(strict=False)
@@ -1462,6 +1542,8 @@ def apply_hermes_transaction(
             )
     except LockBusyError:
         return {"status": "busy", "fatal": False}
+    except MigrationRequiredError as exc:
+        return {"status": "migration_required", "fatal": False, "message": str(exc)}
     except ArchiveError as exc:
         return {"status": "rejected", "fatal": False, "message": str(exc)}
     except (OSError, ValueError) as exc:
@@ -1589,7 +1671,7 @@ def _aggregate_history(*sources: object) -> list[dict]:
         for entry in source:
             if isinstance(entry, dict) and isinstance(entry.get("bundle_version"), str):
                 entries[entry["bundle_version"]] = dict(entry)
-    return [entries[version] for version in sorted(entries, key=parse_semver)]
+    return [entries[version] for version in sorted(entries, key=version_sort_key)]
 
 
 def _status_for_manifest(
@@ -1607,7 +1689,7 @@ def _status_for_manifest(
         "manifest": manifest,
         "history": history,
     }
-    if parse_semver(latest_version) <= parse_semver(current_version):
+    if version_sort_key(latest_version) <= version_sort_key(current_version):
         return {"status": "up_to_date", **result}
     if state.get("ignored_version") == latest_version:
         return {"status": "ignored", **result}
@@ -1616,8 +1698,8 @@ def _status_for_manifest(
     return {"status": "update_available", **result}
 
 
-def _state_paths() -> tuple[Path, Path]:
-    root = get_state_root()
+def _state_paths(state_root: Path | None = None) -> tuple[Path, Path]:
+    root = get_state_root() if state_root is None else Path(state_root)
     return root / STATE_FILE_NAME, root / LOCK_FILE_NAME
 
 
@@ -1647,8 +1729,9 @@ def check_for_update(
     force: bool = False,
     now: float | None = None,
     fetcher=fetch_manifest,
+    state_root: Path | None = None,
 ) -> dict:
-    result = _check_for_update(skill_dir, force=force, now=now, fetcher=fetcher)
+    result = _check_for_update(skill_dir, force=force, now=now, fetcher=fetcher, state_root=state_root)
     result["update_channel"] = (
         "claude-plugin" if is_claude_plugin_path(Path(skill_dir)) else "bundle"
     )
@@ -1661,6 +1744,7 @@ def _check_for_update(
     force: bool = False,
     now: float | None = None,
     fetcher=fetch_manifest,
+    state_root: Path | None = None,
 ) -> dict:
     checked_at = time.time() if now is None else now
     try:
@@ -1669,7 +1753,7 @@ def _check_for_update(
     except ValueError as exc:
         return {"status": "invalid_manifest", "fatal": False, "message": str(exc)}
 
-    state_path, lock_path = _state_paths()
+    state_path, lock_path = _state_paths(state_root)
     try:
         with operation_lock(lock_path):
             state = load_state(state_path)
@@ -1939,6 +2023,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     check = subparsers.add_parser("check")
     check.add_argument("--force", action="store_true")
+    check.add_argument("--skill-dir", type=Path)
+    check.add_argument("--manifest", dest="manifest_path", type=Path)
+    check.add_argument("--state-root", type=Path)
     check.add_argument("--json", action="store_true")
     snooze_parser = subparsers.add_parser("snooze")
     snooze_parser.add_argument(
@@ -1979,7 +2066,14 @@ def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     try:
         if args.command == "check":
-            result = check_for_update(_skill_dir(), force=args.force)
+            kwargs = {"force": args.force, "state_root": args.state_root}
+            if args.manifest_path:
+                state_root = args.state_root if args.state_root else get_state_root()
+                kwargs["force"] = True
+                kwargs["fetcher"] = lambda *_: FetchResult(
+                    _load_manifest_path(args.manifest_path, state_root), None, False
+                )
+            result = check_for_update(args.skill_dir or _skill_dir(), **kwargs)
         elif args.command == "snooze":
             result = snooze(_skill_dir(), args.hours)
         elif args.command == "ignore":
@@ -2000,6 +2094,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             manifest = _load_manifest_path(manifest_path, state_root)
             detect_installation_mode(skills_root, SKILLS)
+            _check_hub_migration(skills_root, source_copy=True)
+            verify_staged_bundle(staged_root, manifest)
             report = inspect_installation(skills_root, manifest)
             if (
                 not args.allow_local_changes
@@ -2034,6 +2130,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             result = details(_skill_dir())
+    except MigrationRequiredError as exc:
+        result = {"status": "migration_required", "fatal": False, "message": str(exc)}
     except ArchiveError as exc:
         result = {"status": "rejected", "fatal": False, "message": str(exc)}
     except (LockBusyError, OSError, ValueError) as exc:

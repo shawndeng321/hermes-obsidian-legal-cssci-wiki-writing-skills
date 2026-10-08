@@ -1,6 +1,6 @@
 # 群案统计落地与案号匹配
 
-用于对库内案例做计数、比率、年代切片、法条频率等统计，以及把初稿脚注或论文引用与库内案例按案号对应。统计结果如何进入论点—证据—引注矩阵，见 [research-design-pages.md](research-design-pages.md)；论文写作中的表述限制见 `chinese-law-paper-writing` 的 `references/empirical-case-research.md`。DOCX 脚注提取见 [docx-footnote-extraction.md](docx-footnote-extraction.md)。
+用于对库内案例做计数、比率、年代切片、法条频率等统计，以及把初稿脚注或论文引用与库内案例按案号对应。统计结果如何进入论点—证据—引注矩阵，见 [research-design-pages.md](research-design-pages.md)；论文写作中的表述限制见 `law-paper-writing` 的 `references/empirical-case-research.md`。DOCX 脚注提取见 [docx-footnote-extraction.md](docx-footnote-extraction.md)。
 
 ## 一、统计前：口径定稿
 

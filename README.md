@@ -7,7 +7,7 @@
 [快速选择](#先从这里开始) · [更新内容](#2026-09-更新内容) · [安装](#安装) · [自动更新](#自动更新) · [验证](#验证与排错)
 
 <p align="center">
-  <img src="chinese-law-paper-writing/assets/readme/paper-banner.jpg" alt="法学学术研究、知识库审计与论文写作技能包" width="100%">
+  <img src="law-paper-writing/assets/readme/paper-banner.jpg" alt="法学学术研究、知识库审计与论文写作技能包" width="100%">
 </p>
 
 ## 先从这里开始
@@ -16,17 +16,17 @@
 |---|---|---|
 | 建立或扩充法学研究 Wiki | [`legal-research-wiki`](legal-research-wiki/) | 有范围、有来源、有质量门禁的论文/案例/法条知识库 |
 | 检查并修复已有 Wiki | [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | 只读审计、P0—P3 台账、小批修复与全量复核 |
-| 从选题写到投稿工作稿 | [`chinese-law-paper-writing`](chinese-law-paper-writing/) | 研究问题—论证—证据—引注链、期刊适配与 DOCX 工作稿 |
+| 从选题写到投稿工作稿 | [`law-paper-writing`](law-paper-writing/) | 研究问题—论证—证据—引注链、期刊适配与 DOCX 工作稿 |
 
-常见顺序：`chinese-law-paper-writing` 先用五问收窄研究问题 → `legal-research-wiki` 组织材料 → `legal-wiki-audit-repair` 定期体检与修复 → 回到写作技能起草和终检。只做其中一项时，可以直接进入对应技能。
+常见顺序：`law-paper-writing` 先用五问收窄研究问题 → `legal-research-wiki` 组织材料 → `legal-wiki-audit-repair` 定期体检与修复 → 回到写作技能起草和终检。只做其中一项时，可以直接进入对应技能。
 
 ## 技能一览
 
 | 技能 | 版本 | 适合什么时候用 | 核心能力 |
 |---|---:|---|---|
-| [`chinese-law-paper-writing`](chinese-law-paper-writing/) | **v6.0.1** | 选题、研究、起草、修订、审核或期刊适配 | 七种任务模式、五项硬门禁、按命题类型检查论证、正文表达与作者声音、材料边界、实证材料细则、期刊适配、DOCX 真实脚注 |
-| [`legal-research-wiki`](legal-research-wiki/) | **v5.0.1** | 新建、扩充或重新整理研究库 | 研究思路先行、范围优先摄入、PDF/DOCX/图片/音频摄入、法规范分层、论文—案例双轨关联、研究设计层、六维质量门禁、闭世界查询 |
-| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v5.0.1** | 已有 Wiki 出现死链、字段缺失、批量操作或技能包更新需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、模板化检测、每日检修与迭代、六项深检脚本 |
+| [`law-paper-writing`](law-paper-writing/) | **v2610.9** | 选题、研究、起草、修订、审核或期刊适配 | 七种任务模式、五项硬门禁、按命题类型检查论证、正文表达与作者声音、材料边界、实证材料细则、期刊适配、DOCX 真实脚注 |
+| [`legal-research-wiki`](legal-research-wiki/) | **v2610.9** | 新建、扩充或重新整理研究库 | 研究思路先行、范围优先摄入、PDF/DOCX/图片/音频摄入、法规范分层、论文—案例双轨关联、研究设计层、六维质量门禁、闭世界查询 |
+| [`legal-wiki-audit-repair`](legal-wiki-audit-repair/) | **v2610.9** | 已有 Wiki 出现死链、字段缺失、批量操作或技能包更新需求 | AUDIT_ONLY、P0—P3 分级、备份/DRY_RUN、小批修复、模板化检测、每日检修与迭代、六项深检脚本 |
 
 ## 2026-09 更新内容
 
@@ -89,7 +89,7 @@ claude plugin update legal-academic-research@legal-academic-research
 三个技能需要分别安装：
 
 ```bash
-hermes skills install shawndeng321/legal-academic-research-skills/chinese-law-paper-writing
+hermes skills install shawndeng321/legal-academic-research-skills/law-paper-writing
 hermes skills install shawndeng321/legal-academic-research-skills/legal-research-wiki
 hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-audit-repair
 ```
@@ -97,7 +97,7 @@ hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-aud
 脚本或 CI 环境加 `--yes`：
 
 ```bash
-hermes skills install shawndeng321/legal-academic-research-skills/chinese-law-paper-writing --yes
+hermes skills install shawndeng321/legal-academic-research-skills/law-paper-writing --yes
 hermes skills install shawndeng321/legal-academic-research-skills/legal-research-wiki --yes
 hermes skills install shawndeng321/legal-academic-research-skills/legal-wiki-audit-repair --yes
 ```
@@ -121,7 +121,7 @@ target="$HOME/.codex/skills"          # Codex
 # target="$HOME/.agents/skills"       # 其他扫描 ~/.agents/skills 的宿主（如 DeepSeek Harness）
 
 mkdir -p "$target"
-for s in chinese-law-paper-writing legal-research-wiki legal-wiki-audit-repair; do
+for s in law-paper-writing legal-research-wiki legal-wiki-audit-repair; do
   cp -R "$checkout/$s" "$target/$s"
 done
 ```
@@ -138,7 +138,7 @@ Codex：
 ```powershell
 $codexSkills = Join-Path $HOME '.codex\skills'
 New-Item -ItemType Directory -Force $codexSkills | Out-Null
-Copy-Item -Recurse -Force "$checkout\chinese-law-paper-writing" (Join-Path $codexSkills 'chinese-law-paper-writing')
+Copy-Item -Recurse -Force "$checkout\law-paper-writing" (Join-Path $codexSkills 'law-paper-writing')
 Copy-Item -Recurse -Force "$checkout\legal-research-wiki" (Join-Path $codexSkills 'legal-research-wiki')
 Copy-Item -Recurse -Force "$checkout\legal-wiki-audit-repair" (Join-Path $codexSkills 'legal-wiki-audit-repair')
 ```
@@ -149,7 +149,7 @@ Hermes：
 $hermesHome = if ($env:HERMES_HOME) { $env:HERMES_HOME } else { Join-Path $env:LOCALAPPDATA 'hermes' }
 $hermesSkills = Join-Path $hermesHome 'skills'
 New-Item -ItemType Directory -Force $hermesSkills | Out-Null
-Copy-Item -Recurse -Force "$checkout\chinese-law-paper-writing" (Join-Path $hermesSkills 'chinese-law-paper-writing')
+Copy-Item -Recurse -Force "$checkout\law-paper-writing" (Join-Path $hermesSkills 'law-paper-writing')
 Copy-Item -Recurse -Force "$checkout\legal-research-wiki" (Join-Path $hermesSkills 'legal-research-wiki')
 Copy-Item -Recurse -Force "$checkout\legal-wiki-audit-repair" (Join-Path $hermesSkills 'legal-wiki-audit-repair')
 hermes skills list --source local --enabled-only
@@ -168,7 +168,7 @@ Claude Code 或其他宿主：把上面的目标目录换成 `Join-Path $HOME '.
 提出本批 5—8 页的摄入计划。不要扫描其他目录，不要写回任何文件。
 ```
 
-Claude Code 中也可以用 `/chinese-law-paper-writing` 等斜杠命令直接调用；Codex 中可用 `$chinese-law-paper-writing`。
+Claude Code 中也可以用 `/law-paper-writing` 等斜杠命令直接调用；Codex 中可用 `$law-paper-writing`。
 
 ## 自动更新
 
@@ -185,7 +185,7 @@ Bundle `1.0.0` 起，三个法学 Skill 作为一个整体检查和更新（Clau
 - **稍后提醒**：暂停提示 4 小时，期间不重复联网。
 - **忽略此版本**：只忽略当前 Bundle；出现更高版本时会重新提示。
 
-更新范围固定为 `chinese-law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair`，不会顺带更新其他 Skill。自动更新器只读取这三个 Skill 目录、自己的状态目录和 GitHub 官方仓库的 HTTPS 发布清单/源码包；它不读取或修改论文、研究 Wiki、Obsidian Vault 等用户研究文件。下载包在写入前必须通过路径、清单、版本和 SHA256 校验。
+更新范围固定为 `law-paper-writing`、`legal-research-wiki`、`legal-wiki-audit-repair`，不会顺带更新其他 Skill。自动更新器只读取这三个 Skill 目录、自己的状态目录和 GitHub 官方仓库的 HTTPS 发布清单/源码包；它不读取或修改论文、研究 Wiki、Obsidian Vault 等用户研究文件。下载包在写入前必须通过路径、清单、版本和 SHA256 校验。
 
 ### 三种安装方式
 
@@ -205,7 +205,7 @@ Bundle `1.0.0` 起，三个法学 Skill 作为一个整体检查和更新（Clau
 - Hermes Hub 用户分别运行以下三个官方更新命令：
 
 ```bash
-hermes skills update chinese-law-paper-writing
+hermes skills update law-paper-writing
 hermes skills update legal-research-wiki
 hermes skills update legal-wiki-audit-repair
 ```
@@ -216,6 +216,12 @@ hermes skills update legal-wiki-audit-repair
 
 **分目录安装的用户（Bundle 1.0.0 → 2026.0925.0 这一次需手动升级）**：有些宿主会把技能分放在分类子目录中，例如 Hermes 本地安装时写作技能在 `~/.hermes/skills/`，另两个在 `~/.hermes/skills/research/`。1.0.0 的更新器只认“三个技能在同一目录”，处理不了这种布局。这一次请先备份旧目录，再把新版三个目录分别复制到原来的位置（不要在根目录另装一份，否则会出现同名重复技能）。2026.0925.0 起更新器会按技能名定位各自的安装目录（根目录或一层分类子目录），原地更新；发现同一技能装了两份时会停止并报告。
 
+**写作技能更名（v2610.9；已安装用户这一次需要一次性引导）**：写作技能正式名称由 `chinese-law-paper-writing` 改为 `law-paper-writing`，三个技能一起改为日期版本。旧版更新器无法识别新名称的发布清单（会直接拒绝），所以这次更新不能全自动完成；请对号入座引导一次，完成后恢复正常的自动检查与更新：
+
+- **源码复制安装**：让 Agent 从本仓库取新版 `scripts/legal_skills_update.py`，把新版三个技能目录暂存到与安装位置同一磁盘、且不含符号链接的目录，用**新版**脚本对新版暂存包运行 `apply`（用户确认后加 `--allow-local-changes`）。旧名目录会在原位置就地改名并更新，迁移前完整备份、失败自动回滚。
+- **Hermes Skills Hub 里登记的还是旧名**：更新器会拒绝写入并返回 `migration_required`；请先按 Hermes 支持的方式卸载旧名、重新安装 `law-paper-writing`（或按提示先显式转为非托管源码安装），然后再执行更新。不要删除 Hub 记录，也不要用旧名的 `hermes skills update` 当作已完成改名。
+- **Claude Code 插件安装**：运行 `claude plugin marketplace update legal-academic-research` 和 `claude plugin update legal-academic-research@legal-academic-research` 即可；插件方式不涉及目录改名迁移。
+
 ### 检查与开发命令
 
 先解析实际安装根目录，不依赖当前工作目录。下面优先使用 Codex 安装；如果不存在，再使用 Hermes 本地目录：
@@ -224,8 +230,8 @@ hermes skills update legal-wiki-audit-repair
 $codexSkills = Join-Path $HOME '.codex\skills'
 $hermesHome = if ($env:HERMES_HOME) { $env:HERMES_HOME } else { Join-Path $env:LOCALAPPDATA 'hermes' }
 $hermesSkills = Join-Path $hermesHome 'skills'
-$skillsRoot = if (Test-Path (Join-Path $codexSkills 'chinese-law-paper-writing')) { $codexSkills } else { $hermesSkills }
-$updater = Join-Path $skillsRoot 'chinese-law-paper-writing\scripts\legal_skills_update.py'
+$skillsRoot = if (Test-Path (Join-Path $codexSkills 'law-paper-writing')) { $codexSkills } else { $hermesSkills }
+$updater = Join-Path $skillsRoot 'law-paper-writing\scripts\legal_skills_update.py'
 ```
 
 ```powershell
@@ -239,7 +245,7 @@ python -X utf8 $updater snooze --hours 4 --json
 python -X utf8 $updater ignore 1.1.0 --json
 ```
 
-`diff` 和源码复制模式的 `apply` 只应由 Agent 在下载、解压和校验暂存 Bundle 后调用；不要把未经验证的目录传给它们。以下命令展示接口形状，其中路径必须解析为绝对路径：
+`diff` 和源码复制模式的 `apply` 只应由 Agent 在下载、解压和校验暂存 Bundle 后调用；不要把未经验证的目录传给它们。以下命令展示接口形状，其中路径必须是绝对路径且不含符号链接——macOS 的 `$TMPDIR`（`/var/folders/...`）和 `/tmp` 都是系统符号链接，先解析为真实路径再使用（如 `cd "$TMPDIR" && pwd -P`），否则更新器会以 `contains a symlink` 拒绝：
 
 ```powershell
 python -X utf8 $updater diff --skills-root $skillsRoot --staged-root $stagedRoot --manifest $manifestPath --state-root $stateRoot --json
@@ -251,7 +257,7 @@ python -X utf8 $updater apply --skills-root $skillsRoot --staged-root $stagedRoo
 ## 三分钟工作流
 
 ```text
-1. PLAN       用 chinese-law-paper-writing 的五问收窄主问题、范围和交付物
+1. PLAN       用 law-paper-writing 的五问收窄主问题、范围和交付物
 2. RESEARCH   用 legal-research-wiki 建研究设计、来源登记和 Wiki 结构
 3. AUDIT      用 legal-wiki-audit-repair 只读体检，建立 P0—P3 台账
 4. REPAIR     用户确认范围后按 5—8 页小批修复，先备份再写入
@@ -263,7 +269,7 @@ python -X utf8 $updater apply --skills-root $skillsRoot --staged-root $stagedRoo
 
 ### 安装验证
 
-- Claude Code：`claude plugin details legal-academic-research@legal-academic-research` 应列出 3 个技能；会话中可用 `/chinese-law-paper-writing` 等命令调用。
+- Claude Code：`claude plugin details legal-academic-research@legal-academic-research` 应列出 3 个技能；会话中可用 `/law-paper-writing` 等命令调用。
 - Hermes：`hermes skills list --source local --enabled-only` 或 `hermes skills list`。
 - Codex：新建任务后直接要求使用对应技能；技能目录必须包含 `SKILL.md` 和 `agents/openai.yaml`。
 - 远程 Hub 因网络探测超时时，改用“源码安装”，不要重复下载单个 `SKILL.md`。
@@ -287,7 +293,7 @@ Codex 技能校验：
 
 ```powershell
 $validator = "$HOME\.codex\skills\.system\skill-creator\scripts\quick_validate.py"
-python -X utf8 $validator chinese-law-paper-writing
+python -X utf8 $validator law-paper-writing
 python -X utf8 $validator legal-research-wiki
 python -X utf8 $validator legal-wiki-audit-repair
 ```
@@ -299,7 +305,7 @@ python -X utf8 $validator legal-wiki-audit-repair
 ```text
 README.md                    # 总入口、安装、更新内容和验证
 .claude-plugin/              # Claude Code 插件与 marketplace 清单
-chinese-law-paper-writing/   # 论文写作与投稿工作稿
+law-paper-writing/   # 论文写作与投稿工作稿
 legal-research-wiki/         # 研究 Wiki 建库与摄入
 legal-wiki-audit-repair/     # Wiki 审计、批量修复与复核
 bundle-release.json          # 技能包发布清单（自动更新读取）
@@ -323,6 +329,6 @@ tests/                        # 兼容性、脚本安全与更新器回归测试
 
 ## 版本与许可证
 
-每项技能遵循 `X.Y.Z` 版本策略：面向所有使用者的结构性调整升 `X`，新增能力或规则升 `Y`，修订和兼容性修复升 `Z`。技能包（Bundle）版本按发布日期编号，格式为 `年.月日.当天序号`，例如 `2026.0925.0`；同一天再次发布时序号加一（`2026.0925.1`）。这种写法仍是三段数字，已安装的更新器可以正确比较新旧。当前为 `2026.0928.0`。
+三个技能与技能包统一按发布日期编号，不再使用 v6、v7 等能力代际编号。公开标签格式为 `vYYMM.D`，例如 **v2610.9** 表示 2026 年 10 月 9 日；同日追加发布用 `v2610.9.1`、`v2610.9.2`。为了保留宿主和更新器的三段数字契约，`metadata.version`、插件版本与 `bundle_version` 统一使用 `YYMM.D.当天序号`，首版为 `2610.9.0`。这里的三段是日期与当天序号，不是主、次、修订版本。历史发布记录中的旧版本号原样保留；论文稿件的版本由作者决定，不跟随技能包日期版。
 
-MIT。`chinese-law-paper-writing` © VictorTran1023 与 Shawn Deng；其余 © 2026 Shawn Deng。本项目不是 Hermes、Anthropic、OpenAI、Obsidian、CSSCI 期刊或其他机构的官方指南、认证或录用承诺。
+MIT。`law-paper-writing` © VictorTran1023 与 Shawn Deng；其余 © 2026 Shawn Deng。本项目不是 Hermes、Anthropic、OpenAI、Obsidian、CSSCI 期刊或其他机构的官方指南、认证或录用承诺。

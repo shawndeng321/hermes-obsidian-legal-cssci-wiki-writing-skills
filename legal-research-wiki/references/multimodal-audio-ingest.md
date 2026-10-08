@@ -100,7 +100,7 @@ Check existing pages, create/update entity & concept pages, cross-link (≥2 `[[
 update `index.md` + `log.md`.
 - Cite the source in page frontmatter: `sources: [raw/transcripts/<topic>.md]`.
 - Provenance markers on synthesized claims: `^[raw/transcripts/<topic>.md]` (per
-  `chinese-law-paper-writing` 技能的 `references/multimodal-citation-format.md` — the raw-note path is the traceable anchor).
+  `law-paper-writing` 技能的 `references/multimodal-citation-format.md` — the raw-note path is the traceable anchor).
 
 ## Discovery (folder-drop path)
 An audio file is binary and can't carry frontmatter. The uningested signal is:
